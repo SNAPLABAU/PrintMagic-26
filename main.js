@@ -671,12 +671,20 @@ $foxitExe = $foxitPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $foxitExe) { Write-Error 'Foxit PDF Reader not found. Install from foxit.com'; exit 1 }
 1..${copies} | ForEach-Object {
   Start-Process -FilePath $foxitExe -ArgumentList '/t', $f, $p -WindowStyle Hidden -Wait
+  # Foxit exits after handing off to the spooler, but the file must stay on disk
+  # until the spooler has finished. Poll Get-PrintJob until the queue clears.
+  $waited = 0
+  do {
+    Start-Sleep -Seconds 2
+    $waited += 2
+    $pending = Get-PrintJob -PrinterName $p -ErrorAction SilentlyContinue
+  } while ($pending -and $waited -lt 90)
 }`;
 
     const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
     exec(
       `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
-      { timeout: 120000 },
+      { timeout: 180000 },  // 90 s queue poll + Foxit startup × copies
       (err, _stdout, stderr) => {
         if (err) reject(new Error(stderr || err.message));
         else resolve();
