@@ -589,17 +589,27 @@ function getDataType(ext) {
 // ── Printer Pool Management ────────────────────────────────────────────────────
 
 ipcMain.handle('get-system-printers', async () => {
-  // On Windows, node-printer (native addon) rarely compiles cleanly against
-  // Electron's Node ABI — go straight to the OS fallback.
-  if (process.platform === 'win32') {
-    return getSystemPrintersFallback();
-  }
+  // Use Electron's built-in printer API — most reliable cross-platform.
   try {
-    const nodePrinter = require('node-printer');
-    return nodePrinter.getPrinters();
+    if (mainWindow && mainWindow.webContents) {
+      const printers = await mainWindow.webContents.getPrintersAsync();
+      if (printers && printers.length > 0) {
+        return printers.map(p => ({ name: p.name, status: 'Ready' })).filter(p => p.name);
+      }
+    }
   } catch (e) {
-    return getSystemPrintersFallback();
+    // fall through
   }
+  // Fallback: shell commands
+  if (process.platform !== 'win32') {
+    try {
+      const nodePrinter = require('node-printer');
+      return nodePrinter.getPrinters();
+    } catch (e) {
+      // fall through
+    }
+  }
+  return getSystemPrintersFallback();
 });
 
 function getSystemPrintersFallback() {
