@@ -402,7 +402,7 @@
   .toast-msg { flex: 1; }
 
   /* ── Settings View ────────────────────────────────────── */
-  .settings-body { flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 20px; max-width: 600px; }
+  .settings-body { flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 20px; max-width: 860px; }
   .settings-card {
     background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-lg);
     padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;
@@ -418,7 +418,7 @@
   .settings-card.inactive-for-method::after {
     content: ''; display: block;
   }
-  .sides-row { display: flex; gap: 10px; }
+  .sides-row { display: flex; flex-wrap: wrap; gap: 10px; }
   .sides-opt {
     flex: 1; padding: 10px 14px; border-radius: 8px;
     border: 1px solid var(--border); background: var(--surface);
@@ -788,7 +788,7 @@
         <div class="settings-card" id="winPrintCard">
           <div>
             <div class="settings-card-title">Windows Print Method</div>
-            <div class="settings-card-desc"><b>Shell (PrintTo)</b> — hands the file to Windows' registered default handler (Edge, Acrobat, etc.) via ShellExecuteEx, which prints through the driver natively. <b>Built-in (Electron)</b> uses Chromium's renderer. <b>SumatraPDF</b> requires SumatraPDF installed at its default path.</div>
+            <div class="settings-card-desc"><b>Built-in (Electron)</b> — Chromium renderer, no install needed. <b>Shell (PrintTo)</b> — hands the file to the system default handler via ShellExecuteEx. <b>SumatraPDF</b> — lightweight PDF viewer with scale control (noscale/shrink/fit). <b>Ghostscript</b> — rasterises with <code>-dFitPage</code>, best for margin accuracy. <b>Foxit Reader</b> — uses Foxit's <code>/t</code> silent-print flag. <b>MuPDF</b> — open-source, fast, supports duplex via <code>mutool print</code>. All except Electron require the app installed.</div>
           </div>
           <div class="sides-row">
             <button class="sides-opt" id="winPrintShellBtn" onclick="setWinPrintMethod('shell')">
@@ -802,6 +802,18 @@
             <button class="sides-opt" id="winPrintSumatraBtn" onclick="setWinPrintMethod('sumatra')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               SumatraPDF
+            </button>
+            <button class="sides-opt" id="winPrintGhostscriptBtn" onclick="setWinPrintMethod('ghostscript')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              Ghostscript
+            </button>
+            <button class="sides-opt" id="winPrintFoxitBtn" onclick="setWinPrintMethod('foxit')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Foxit Reader
+            </button>
+            <button class="sides-opt" id="winPrintMuPDFBtn" onclick="setWinPrintMethod('mupdf')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              MuPDF
             </button>
           </div>
         </div>
@@ -1116,11 +1128,14 @@ function updateSettingsUI() {
   document.getElementById('settingDoubleBtn')?.classList.toggle('active', sides !== 'one-sided');
 
   const method = config.winPrintMethod || 'electron';
-  document.getElementById('winPrintShellBtn')?.classList.toggle('active',    method === 'shell');
-  document.getElementById('winPrintElectronBtn')?.classList.toggle('active', method === 'electron');
-  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',  method === 'sumatra');
+  document.getElementById('winPrintShellBtn')?.classList.toggle('active',       method === 'shell');
+  document.getElementById('winPrintElectronBtn')?.classList.toggle('active',    method === 'electron');
+  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',     method === 'sumatra');
+  document.getElementById('winPrintGhostscriptBtn')?.classList.toggle('active', method === 'ghostscript');
+  document.getElementById('winPrintFoxitBtn')?.classList.toggle('active',       method === 'foxit');
+  document.getElementById('winPrintMuPDFBtn')?.classList.toggle('active',       method === 'mupdf');
 
-  // Print Scale — only active for SumatraPDF; dim the card otherwise
+  // Print Scale — only relevant for SumatraPDF; dim the card for all other methods
   const isSumatra = method === 'sumatra';
   document.getElementById('printScaleCard')?.classList.toggle('inactive-for-method', !isSumatra);
   const scale = config.printScale || 'shrink';
@@ -1139,7 +1154,6 @@ function updateSettingsUI() {
 
   const copiesEl = document.getElementById('defaultCopiesCount');
   if (copiesEl) copiesEl.textContent = Math.max(1, config.defaultCopies || 1);
-  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',  method === 'sumatra');
 }
 async function setDefaultSides(sides) {
   config = await window.api.updateConfig({ defaultSides: sides });

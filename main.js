@@ -603,6 +603,135 @@ function shellPrintTo(filePath, printerName, options) {
   });
 }
 
+// Print via Ghostscript's mswinpr2 device — sends rasterised PDF directly to the
+// Windows print spooler for the named printer.  -dFitPage scales the page to fit
+// the printer's reported printable area, correctly accounting for non-printable
+// margins.  Requires Ghostscript installed from ghostscript.com (64-bit preferred).
+function ghostscriptPrint(filePath, printerName, options) {
+  return new Promise((resolve, reject) => {
+    const { exec } = require('child_process');
+    const copies = Math.max(1, parseInt(options?.copies, 10) || 1);
+
+    // Single-quote escape for PowerShell literal strings
+    const psFile    = filePath.replace(/'/g, "''");
+    const psPrinter = printerName.replace(/'/g, "''");
+
+    // PowerShell script:
+    //   1. Searches common Ghostscript install dirs for gswin64c.exe / gswin32c.exe
+    //   2. Invokes gs with mswinpr2 device and -dFitPage
+    // $p expands inside double-quoted PS string to give "%printer%<name>"
+    const psScript = `$f = '${psFile}'
+$p = '${psPrinter}'
+$gsDirs = @('C:\\Program Files\\gs','C:\\Program Files (x86)\\gs')
+$gsExe = $null
+foreach ($dir in $gsDirs) {
+  if (Test-Path $dir) {
+    $hit = Get-ChildItem -Path $dir -Recurse -Filter 'gswin64c.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($hit) { $gsExe = $hit.FullName; break }
+    $hit = Get-ChildItem -Path $dir -Recurse -Filter 'gswin32c.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($hit) { $gsExe = $hit.FullName; break }
+  }
+}
+if (-not $gsExe) { Write-Error 'Ghostscript not found. Install from ghostscript.com'; exit 1 }
+& $gsExe -dNOPAUSE -dBATCH -dNOSAFER -sDEVICE=mswinpr2 "-sOutputFile=%printer%$p" -dFitPage -dNumCopies=${copies} $f
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`;
+
+    const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+    exec(
+      `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+      { timeout: 120000 },
+      (err, _stdout, stderr) => {
+        if (err) reject(new Error(stderr || err.message));
+        else resolve();
+      }
+    );
+  });
+}
+
+// Print via Foxit PDF Reader — uses the /t silent-print flag.
+// Searches common Foxit install paths (PDF Reader 2024 and legacy Reader).
+// Copies are handled by invoking Foxit once per copy (Foxit has no CLI copies flag).
+function foxitPrint(filePath, printerName, options) {
+  return new Promise((resolve, reject) => {
+    const { exec } = require('child_process');
+    const copies = Math.max(1, parseInt(options?.copies, 10) || 1);
+
+    const psFile    = filePath.replace(/'/g, "''");
+    const psPrinter = printerName.replace(/'/g, "''");
+
+    const psScript = `$f = '${psFile}'
+$p = '${psPrinter}'
+$foxitPaths = @(
+  'C:\\Program Files\\Foxit Software\\Foxit PDF Reader\\FoxitPDFReader.exe',
+  'C:\\Program Files (x86)\\Foxit Software\\Foxit PDF Reader\\FoxitPDFReader.exe',
+  'C:\\Program Files\\Foxit Software\\Foxit Reader\\FoxitReader.exe',
+  'C:\\Program Files (x86)\\Foxit Software\\Foxit Reader\\FoxitReader.exe'
+)
+$foxitExe = $foxitPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $foxitExe) { Write-Error 'Foxit PDF Reader not found. Install from foxit.com'; exit 1 }
+1..${copies} | ForEach-Object {
+  Start-Process -FilePath $foxitExe -ArgumentList '/t', $f, $p -WindowStyle Hidden -Wait
+}`;
+
+    const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+    exec(
+      `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+      { timeout: 120000 },
+      (err, _stdout, stderr) => {
+        if (err) reject(new Error(stderr || err.message));
+        else resolve();
+      }
+    );
+  });
+}
+
+// Print via MuPDF mutool — open-source, lightweight, reliable scaling.
+// mutool print -P <printer> -N <copies> [-S simplex|duplex|duplexshort] <file>
+// Checks common install paths then falls back to PATH.
+function muPDFPrint(filePath, printerName, options) {
+  return new Promise((resolve, reject) => {
+    const { exec } = require('child_process');
+    const copies = Math.max(1, parseInt(options?.copies, 10) || 1);
+    const sides  = options?.sides || 'one-sided';
+
+    // Map PrintMagic sides → mutool -S values
+    const sidesMap = {
+      'one-sided':           'simplex',
+      'two-sided-long-edge': 'duplex',
+      'two-sided-short-edge':'duplexshort',
+    };
+    const muSides = sidesMap[sides] || 'simplex';
+
+    const psFile    = filePath.replace(/'/g, "''");
+    const psPrinter = printerName.replace(/'/g, "''");
+
+    const psScript = `$f = '${psFile}'
+$p = '${psPrinter}'
+$muPaths = @(
+  'C:\\Program Files\\MuPDF\\mutool.exe',
+  'C:\\Program Files (x86)\\MuPDF\\mutool.exe'
+)
+$muExe = $muPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $muExe) {
+  $cmd = Get-Command mutool -ErrorAction SilentlyContinue
+  if ($cmd) { $muExe = $cmd.Source }
+}
+if (-not $muExe) { Write-Error 'MuPDF (mutool) not found. Install from mupdf.com'; exit 1 }
+& $muExe print -P $p -N ${copies} -S ${muSides} $f
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`;
+
+    const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+    exec(
+      `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+      { timeout: 120000 },
+      (err, _stdout, stderr) => {
+        if (err) reject(new Error(stderr || err.message));
+        else resolve();
+      }
+    );
+  });
+}
+
 async function sendToPrinter(job, printer) {
   const ext = path.extname(job.filename).toLowerCase();
   const filePath = job.pendingPath || job.filePath;
@@ -636,6 +765,15 @@ async function sendToPrinter(job, printer) {
 
     if (config.winPrintMethod === 'sumatra') {
       return new Promise((resolve, reject) => osPrintPDF(filePath, printer.name, { sides }, resolve, reject));
+    }
+    if (config.winPrintMethod === 'ghostscript') {
+      return ghostscriptPrint(filePath, printer.name, mergedOpts);
+    }
+    if (config.winPrintMethod === 'foxit') {
+      return foxitPrint(filePath, printer.name, mergedOpts);
+    }
+    if (config.winPrintMethod === 'mupdf') {
+      return muPDFPrint(filePath, printer.name, mergedOpts);
     }
     if (config.winPrintMethod === 'shell') {
       return shellPrintTo(filePath, printer.name, mergedOpts);
