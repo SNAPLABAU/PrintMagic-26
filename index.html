@@ -433,6 +433,49 @@
   }
   .page-size-opt:hover { border-color: var(--border-bright); color: var(--text); }
   .page-size-opt.active { background: var(--accent-glow); border-color: var(--accent-dim); color: var(--accent); }
+  .size-setting-row { display: flex; align-items: center; gap: 8px; }
+  .size-setting-input {
+    width: 80px; height: 34px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--mono); font-size: 13px; font-weight: 600;
+    text-align: center; outline: none;
+    -moz-appearance: textfield; appearance: textfield; transition: border-color 0.15s;
+  }
+  .size-setting-input::-webkit-inner-spin-button,
+  .size-setting-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .size-setting-input:focus { border-color: var(--accent-dim); }
+  .size-setting-input.has-value { border-color: rgba(124,106,247,0.5); color: var(--accent); }
+  .size-setting-sep { font-family: var(--mono); font-size: 13px; color: var(--text-dim); }
+  .size-setting-unit { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+  .size-setting-clear {
+    margin-left: auto; padding: 6px 12px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); font-family: var(--sans); font-size: 12px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .size-setting-clear:hover { border-color: var(--red); color: var(--red); background: rgba(240,79,90,0.07); }
+  .copies-setting-row { display: flex; align-items: center; gap: 12px; }
+  .copies-setting-label {
+    flex: 1; font-size: 13px; font-weight: 500; color: var(--text-dim);
+  }
+  .copies-setting-ctrl {
+    display: flex; align-items: center;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); height: 34px; overflow: hidden;
+  }
+  .copies-setting-ctrl button {
+    background: none; border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim); font-size: 17px;
+    cursor: pointer; padding: 0 14px; height: 100%; line-height: 1;
+    transition: all 0.15s; font-family: var(--mono);
+  }
+  .copies-setting-ctrl button:last-child { border-right: none; border-left: 1px solid var(--border); }
+  .copies-setting-ctrl button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+  .copies-setting-ctrl span {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    color: var(--text); min-width: 40px; text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -757,21 +800,47 @@
         <div class="settings-card">
           <div>
             <div class="settings-card-title">Print Scale</div>
-            <div class="settings-card-desc">Controls how the document is scaled onto the paper. <b>Actual Size</b> prints at 100% (document DPI). <b>Fit Page</b> scales to fill the full page. <b>Fit Width / Height</b> scale along one axis. Applied to SumatraPDF and CUPS (macOS/Linux).</div>
+            <div class="settings-card-desc"><b>Shrink to Fit</b> — recommended. Scales down only if the document extends beyond the printer's printable area (accounts for driver margins — prevents right/bottom clipping). <b>Actual Size</b> — 100%, ignores printer margins (may clip edges). <b>Fit Page</b> — always scales to fill the page. Applied to SumatraPDF and CUPS.</div>
           </div>
           <div class="page-size-grid">
             <button class="page-size-opt" id="scaleActualBtn" onclick="setPrintScale('actual')">
               Actual Size
             </button>
+            <button class="page-size-opt" id="scaleShrinkBtn" onclick="setPrintScale('shrink')">
+              Shrink to Fit
+            </button>
             <button class="page-size-opt" id="scaleFitPageBtn" onclick="setPrintScale('fit-page')">
               Fit Page
             </button>
-            <button class="page-size-opt" id="scaleFitWidthBtn" onclick="setPrintScale('fit-width')">
-              Fit Width
-            </button>
-            <button class="page-size-opt" id="scaleFitHeightBtn" onclick="setPrintScale('fit-height')">
-              Fit Height
-            </button>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div>
+            <div class="settings-card-title">Default Print Size</div>
+            <div class="settings-card-desc">Set a fixed paper size in mm applied to every print job. Leave blank to use the printer driver's configured paper size. For custom media like property prints, enter the exact dimensions here.</div>
+          </div>
+          <div class="size-setting-row">
+            <input type="number" class="size-setting-input" id="defaultWidthInput" min="1" max="9999" step="0.1" placeholder="Width" title="Width in mm" onblur="saveDefaultSize()">
+            <span class="size-setting-sep">×</span>
+            <input type="number" class="size-setting-input" id="defaultHeightInput" min="1" max="9999" step="0.1" placeholder="Height" title="Height in mm" onblur="saveDefaultSize()">
+            <span class="size-setting-unit">mm</span>
+            <button class="size-setting-clear" id="sizeClearBtn" onclick="clearDefaultSize()" title="Clear — use driver default">✕ Clear</button>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div>
+            <div class="settings-card-title">Default Copies</div>
+            <div class="settings-card-desc">Number of copies sent for every print job. Applied automatically — no need to set it per job.</div>
+          </div>
+          <div class="copies-setting-row">
+            <span class="copies-setting-label">Copies</span>
+            <div class="copies-setting-ctrl">
+              <button onclick="addDefaultCopies(-1)">−</button>
+              <span id="defaultCopiesCount">1</span>
+              <button onclick="addDefaultCopies(1)">+</button>
+            </div>
           </div>
         </div>
 
@@ -1039,10 +1108,21 @@ function updateSettingsUI() {
   document.getElementById('winPrintElectronBtn')?.classList.toggle('active', method === 'electron');
 
   const scale = config.printScale || 'actual';
-  document.getElementById('scaleActualBtn')?.classList.toggle('active',    scale === 'actual');
-  document.getElementById('scaleFitPageBtn')?.classList.toggle('active',   scale === 'fit-page');
-  document.getElementById('scaleFitWidthBtn')?.classList.toggle('active',  scale === 'fit-width');
-  document.getElementById('scaleFitHeightBtn')?.classList.toggle('active', scale === 'fit-height');
+  document.getElementById('scaleActualBtn')?.classList.toggle('active',  scale === 'actual');
+  document.getElementById('scaleShrinkBtn')?.classList.toggle('active',  scale === 'shrink');
+  document.getElementById('scaleFitPageBtn')?.classList.toggle('active', scale === 'fit-page');
+
+  const wInput = document.getElementById('defaultWidthInput');
+  const hInput = document.getElementById('defaultHeightInput');
+  if (wInput && hInput) {
+    wInput.value = config.defaultWidthMm  > 0 ? config.defaultWidthMm  : '';
+    hInput.value = config.defaultHeightMm > 0 ? config.defaultHeightMm : '';
+    wInput.classList.toggle('has-value', (config.defaultWidthMm  || 0) > 0);
+    hInput.classList.toggle('has-value', (config.defaultHeightMm || 0) > 0);
+  }
+
+  const copiesEl = document.getElementById('defaultCopiesCount');
+  if (copiesEl) copiesEl.textContent = Math.max(1, config.defaultCopies || 1);
   document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',  method === 'sumatra');
 }
 async function setDefaultSides(sides) {
@@ -1059,6 +1139,27 @@ async function setPrintScale(scale) {
   config = await window.api.updateConfig({ printScale: scale });
   updateSettingsUI();
   showToast('Print scale saved', 'success');
+}
+async function saveDefaultSize() {
+  const w = parseFloat(document.getElementById('defaultWidthInput')?.value) || 0;
+  const h = parseFloat(document.getElementById('defaultHeightInput')?.value) || 0;
+  config = await window.api.updateConfig({ defaultWidthMm: w, defaultHeightMm: h });
+  updateSettingsUI();
+  if (w > 0 && h > 0) showToast(`Default size set: ${w} × ${h} mm`, 'success');
+}
+async function addDefaultCopies(delta) {
+  const current = Math.max(1, config.defaultCopies || 1);
+  const next = Math.max(1, Math.min(99, current + delta));
+  if (next === current) return;
+  config = await window.api.updateConfig({ defaultCopies: next });
+  updateSettingsUI();
+}
+async function clearDefaultSize() {
+  document.getElementById('defaultWidthInput').value  = '';
+  document.getElementById('defaultHeightInput').value = '';
+  config = await window.api.updateConfig({ defaultWidthMm: 0, defaultHeightMm: 0 });
+  updateSettingsUI();
+  showToast('Size cleared — using driver default', 'success');
 }
 
 // ═══════════════════════════════════════════════════════

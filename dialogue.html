@@ -42,11 +42,11 @@
     box-shadow: 0 32px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(124,106,247,0.08);
   }
 
-  /* Top drag region */
+  /* Top drag region — tall enough to grab and move the window */
   .drag-region {
     position: absolute;
     top: 0; left: 0; right: 0;
-    height: 10px;
+    height: 36px;
     -webkit-app-region: drag;
     z-index: 10;
   }
@@ -272,78 +272,7 @@
 
   .side-panel-hint { font-size: 10px; color: var(--text-muted); text-align: center; line-height: 1.5; }
 
-  /* ── Copies row ─────────────────────── */
-  .copies-row {
-    display: flex; align-items: center; gap: 8px;
-  }
-  .copies-label {
-    font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
-    color: var(--text-muted); text-transform: uppercase; font-family: var(--mono);
-    flex: 1;
-  }
-  .copies-ctrl {
-    display: flex; align-items: center;
-    border: 1px solid var(--border); border-radius: 7px;
-    background: rgba(255,255,255,0.03); height: 28px; overflow: hidden;
-  }
-  .copies-ctrl button {
-    background: none; border: none;
-    border-right: 1px solid var(--border);
-    color: var(--text-dim); font-size: 15px;
-    cursor: pointer; padding: 0 8px; height: 100%; line-height: 1;
-    transition: all 0.15s; font-family: var(--mono);
-  }
-  .copies-ctrl button:last-child { border-right: none; border-left: 1px solid var(--border); }
-  .copies-ctrl button:hover { color: var(--text); background: rgba(255,255,255,0.06); }
-  .copies-ctrl span {
-    font-family: var(--mono); font-size: 12px; font-weight: 700;
-    color: var(--text); min-width: 26px; text-align: center;
-  }
 
-  /* ── Size row ────────────────────────── */
-  .size-row {
-    display: flex; align-items: center; gap: 8px;
-  }
-  .size-label {
-    font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
-    color: var(--text-muted); text-transform: uppercase; font-family: var(--mono);
-    flex: 1;
-  }
-  .size-inputs {
-    display: flex; align-items: center; gap: 5px;
-  }
-  .size-inputs input[type=number] {
-    width: 54px; height: 28px;
-    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-    border-radius: 7px; color: var(--text);
-    font-family: var(--mono); font-size: 12px; font-weight: 700;
-    text-align: center; outline: none;
-    -moz-appearance: textfield; appearance: textfield;
-    transition: border-color 0.15s;
-  }
-  .size-inputs input[type=number]::-webkit-inner-spin-button,
-  .size-inputs input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
-  .size-inputs input[type=number]:focus { border-color: var(--accent-dim); }
-  .size-inputs input[type=number].has-value { border-color: rgba(124,106,247,0.4); color: var(--accent); }
-  .size-sep {
-    font-family: var(--mono); font-size: 11px; color: var(--text-muted);
-  }
-  .size-unit {
-    font-family: var(--mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.06em;
-  }
-
-  /* ── Properties button ───────────────── */
-  .props-btn {
-    width: 28px; height: 28px;
-    border-radius: 7px;
-    border: 1px solid var(--border);
-    background: rgba(255,255,255,0.03);
-    color: var(--text-muted);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all 0.15s; flex-shrink: 0;
-  }
-  .props-btn:hover { border-color: var(--accent-dim); color: var(--accent); background: var(--accent-glow); }
-  .props-btn svg { width: 13px; height: 13px; }
 </style>
 </head>
 <body>
@@ -372,33 +301,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <div class="printer-name" id="printerName">—</div>
-        <button class="props-btn" id="propsBtn" onclick="openProps()" title="Printer Properties">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
         <button class="nav-btn" id="nextBtn" onclick="nextPrinter()" title="Next (→ ↓)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
       <div class="printer-idx" id="printerIdx"></div>
-    </div>
-
-    <div class="copies-row">
-      <span class="copies-label">Copies</span>
-      <div class="copies-ctrl">
-        <button onclick="addCopies(-1)" title="Fewer copies">−</button>
-        <span id="copiesCount">1</span>
-        <button onclick="addCopies(1)" title="More copies">+</button>
-      </div>
-    </div>
-
-    <div class="size-row">
-      <span class="size-label">Size</span>
-      <div class="size-inputs">
-        <input type="number" id="sizeW" min="1" max="9999" step="0.1" placeholder="W" title="Width in mm" oninput="onSizeInput()">
-        <span class="size-sep">×</span>
-        <input type="number" id="sizeH" min="1" max="9999" step="0.1" placeholder="H" title="Height in mm" oninput="onSizeInput()">
-        <span class="size-unit">mm</span>
-      </div>
     </div>
 
     <div class="actions">
@@ -450,9 +357,6 @@ let printerIdx = 0;
 let sidePanelOpen = false;
 let defaultSides = 'one-sided';
 
-let printCopies    = 1;
-let customWidthMm  = 0;
-let customHeightMm = 0;
 
 window.dialogue.onInit((data) => load(data));
 window.dialogue.onUpdate((data) => load(data));
@@ -462,10 +366,8 @@ function load(data) {
   printers = data.printers || [];
   allPrinters = data.allPrinters || printers;
   defaultSides = data.defaultSides || 'one-sided';
-  printCopies    = 1;
-  customWidthMm  = 0;
-  customHeightMm = 0;
-  printerIdx     = 0;
+  printCopies = 1;
+  printerIdx  = 0;
 
   const ext = job.filename.split('.').pop().toUpperCase().slice(0, 4);
   const icon = document.getElementById('fileIcon');
@@ -473,36 +375,9 @@ function load(data) {
   icon.className = 'file-icon' + (ext === 'PDF' ? ' pdf' : '');
   document.getElementById('fileName').textContent = job.filename;
 
-  // Reset size inputs
-  const wEl = document.getElementById('sizeW');
-  const hEl = document.getElementById('sizeH');
-  wEl.value = ''; wEl.classList.remove('has-value');
-  hEl.value = ''; hEl.classList.remove('has-value');
-
   updatePrinterDisplay();
-  document.getElementById('copiesCount').textContent = printCopies;
   updateQueueBadge(data.queueCount);
   renderSidePanel();
-}
-
-function onSizeInput() {
-  const w = parseFloat(document.getElementById('sizeW').value) || 0;
-  const h = parseFloat(document.getElementById('sizeH').value) || 0;
-  customWidthMm  = w;
-  customHeightMm = h;
-  document.getElementById('sizeW').classList.toggle('has-value', w > 0);
-  document.getElementById('sizeH').classList.toggle('has-value', h > 0);
-}
-
-async function openProps() {
-  if (!printers.length) return;
-  const printer = printers[printerIdx];
-  await window.dialogue.openPrinterProps(printer.name);
-}
-
-function addCopies(delta) {
-  printCopies = Math.max(1, Math.min(99, printCopies + delta));
-  document.getElementById('copiesCount').textContent = printCopies;
 }
 
 function updatePrinterDisplay() {
@@ -552,16 +427,11 @@ function updateQueueBadge(count) {
 async function doPrint() {
   if (!job || printers.length === 0) return;
   const printer = printers[printerIdx];
-  const printOpts = { copies: printCopies };
-  if (customWidthMm > 0 && customHeightMm > 0) {
-    printOpts.customWidthMm  = customWidthMm;
-    printOpts.customHeightMm = customHeightMm;
-  }
   await window.dialogue.confirmPrint({
     jobId: job.id,
     printerName: printer.name,
     sides: defaultSides,
-    printOpts,
+    printOpts: {},
   });
 }
 

@@ -19,7 +19,10 @@ let config = {
   stashFolder: '',
   defaultSides: 'one-sided',
   winPrintMethod: 'electron',   // 'electron' | 'shell' | 'sumatra'
-  printScale: 'actual',         // 'actual' | 'fit-page' | 'fit-width' | 'fit-height'
+  printScale: 'shrink',         // 'actual' | 'shrink' | 'fit-page'
+  defaultCopies:   1,
+  defaultWidthMm:  0,           // 0 = let driver decide
+  defaultHeightMm: 0,
   defaultPageSize: 'A4',
   defaultColorMode: true        // true = color, false = grayscale
 };
@@ -241,12 +244,15 @@ function createDialogueWindow() {
 
   dialogueWindow = new BrowserWindow({
     width: 640,
-    height: 320,
+    height: 300,
+    minWidth: 420,
+    minHeight: 220,
     x: Math.round((width - 640) / 2),
-    y: Math.round((height - 320) / 2),
+    y: Math.round((height - 300) / 2),
     frame: false,
     alwaysOnTop: true,
-    resizable: false,
+    resizable: true,
+    movable: true,
     skipTaskbar: true,
     show: false,
     backgroundColor: '#0a0a0c',
@@ -552,18 +558,36 @@ function shellPrintTo(filePath, printerName, options) {
     const customW = parseFloat(options?.customWidthMm)  || 0;
     const customH = parseFloat(options?.customHeightMm) || 0;
 
+    // Build a PowerShell script that:
+    // 1. Optionally sets paper size via Set-PrintConfiguration (1/10 mm units)
+    // 2. Tries Adobe Acrobat/Reader (/t flag = silent print-to-printer)
+    // 3. Falls back to ShellExecuteEx PrintTo verb (works with most apps except Edge)
     const lines = [];
-    // Apply custom paper size via Set-PrintConfiguration before printing.
-    // Units are 1/10 mm (e.g. 210 mm → 2100).
+
     if (customW > 0 && customH > 0) {
-      lines.push(`Set-PrintConfiguration -PrinterName '${psPrinter}' -PaperWidth ${Math.round(customW * 10)} -PaperHeight ${Math.round(customH * 10)}`);
+      lines.push(`Set-PrintConfiguration -PrinterName '${psPrinter}' -PaperWidth ${Math.round(customW * 10)} -PaperHeight ${Math.round(customH * 10)} -ErrorAction SilentlyContinue`);
     }
+
     lines.push(`$f = '${psFile}'`);
     lines.push(`$p = '${psPrinter}'`);
-    lines.push(`Start-Process -FilePath $f -Verb PrintTo -ArgumentList ('"' + $p + '"') -WindowStyle Hidden -Wait`);
 
-    // PowerShell script: pass printer name double-quoted so PrintTo handler receives it
-    const psScript = lines.join('; ');
+    // Adobe Acrobat DC / Reader paths — /t <file> <printer> = silent print
+    lines.push(`$readers = @(`);
+    lines.push(`  'C:\\Program Files\\Adobe\\Acrobat DC\\Acrobat\\Acrobat.exe',`);
+    lines.push(`  'C:\\Program Files (x86)\\Adobe\\Acrobat DC\\Acrobat\\Acrobat.exe',`);
+    lines.push(`  'C:\\Program Files\\Adobe\\Acrobat Reader DC\\Reader\\AcroRd32.exe',`);
+    lines.push(`  'C:\\Program Files (x86)\\Adobe\\Acrobat Reader DC\\Reader\\AcroRd32.exe'`);
+    lines.push(`)`);
+    lines.push(`$reader = $readers | Where-Object { Test-Path $_ } | Select-Object -First 1`);
+    lines.push(`if ($reader) {`);
+    lines.push(`  Start-Process -FilePath $reader -ArgumentList '/t', $f, $p -WindowStyle Hidden -Wait`);
+    lines.push(`} else {`);
+    // PrintTo verb fallback — works for most file types; Edge may not support PDF PrintTo
+    lines.push(`  Start-Process -FilePath $f -Verb PrintTo -ArgumentList $p -WindowStyle Hidden -Wait`);
+    lines.push(`}`);
+
+    // Newline-joined so PowerShell parses it as a proper multi-statement script
+    const psScript = lines.join('\n');
 
     // Encode as UTF-16LE Base64 — the format -EncodedCommand expects
     const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
@@ -597,13 +621,26 @@ async function sendToPrinter(job, printer) {
         });
       } catch (err) { /* node-printer not available, fall through */ }
     }
+    // Merge config default size into per-job options (job.printOpts takes precedence)
+    const sizeDefaults = {};
+    if ((config.defaultWidthMm || 0) > 0 && (config.defaultHeightMm || 0) > 0) {
+      sizeDefaults.customWidthMm  = config.defaultWidthMm;
+      sizeDefaults.customHeightMm = config.defaultHeightMm;
+    }
+    const mergedOpts = {
+      sides,
+      copies: Math.max(1, config.defaultCopies || 1),
+      ...sizeDefaults,
+      ...(job.printOpts || {}),
+    };
+
     if (config.winPrintMethod === 'sumatra') {
       return new Promise((resolve, reject) => osPrintPDF(filePath, printer.name, { sides }, resolve, reject));
     }
     if (config.winPrintMethod === 'shell') {
-      return shellPrintTo(filePath, printer.name, job.printOpts || {});
+      return shellPrintTo(filePath, printer.name, mergedOpts);
     }
-    return electronPrint(filePath, printer.name, { sides, ...(job.printOpts || {}) });
+    return electronPrint(filePath, printer.name, mergedOpts);
   }
 
   // macOS / Linux: existing logic
@@ -634,12 +671,15 @@ function osPrintPDF(filePath, printerName, options, resolve, reject) {
   const safeFile = filePath.replace(/"/g, '\\"');
   const safePrinter = printerName ? printerName.replace(/"/g, '\\"') : '';
 
-  // Map config.printScale to SumatraPDF fit keyword and CUPS option
+  // Map config.printScale → SumatraPDF -print-settings token and CUPS lp option.
+  // SumatraPDF tokens: noscale (100%), shrink (shrink-only), fit (always scale).
+  // fit=none / fit=page are NOT valid SumatraPDF syntax — use the keywords below.
   const scaleMap = {
-    'actual':     { sumatra: 'fit=none',   cups: 'fit-to-page=no'  },
-    'fit-page':   { sumatra: 'fit=page',   cups: 'fit-to-page=yes' },
-    'fit-width':  { sumatra: 'fit=width',  cups: 'fit-to-page=yes' },
-    'fit-height': { sumatra: 'fit=height', cups: 'fit-to-page=yes' },
+    'actual':     { sumatra: 'noscale', cups: 'fit-to-page=no'  },
+    'shrink':     { sumatra: 'shrink',  cups: 'fit-to-page=yes' },
+    'fit-page':   { sumatra: 'fit',     cups: 'fit-to-page=yes' },
+    'fit-width':  { sumatra: 'fit',     cups: 'fit-to-page=yes' },
+    'fit-height': { sumatra: 'fit',     cups: 'fit-to-page=yes' },
   };
   const scale = scaleMap[config.printScale] || scaleMap['actual'];
 
