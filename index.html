@@ -720,6 +720,22 @@
             </button>
           </div>
         </div>
+        <div class="settings-card" id="winPrintCard">
+          <div>
+            <div class="settings-card-title">Windows Print Method</div>
+            <div class="settings-card-desc">Choose how files are sent to the printer on Windows. <b>Built-in (Electron)</b> works out of the box. <b>SumatraPDF</b> requires SumatraPDF to be installed at its default path and gives more control over scaling.</div>
+          </div>
+          <div class="sides-row">
+            <button class="sides-opt active" id="winPrintElectronBtn" onclick="setWinPrintMethod('electron')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+              Built-in (Electron)
+            </button>
+            <button class="sides-opt" id="winPrintSumatraBtn" onclick="setWinPrintMethod('sumatra')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              SumatraPDF
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -977,11 +993,20 @@ function updateSettingsUI() {
   const sides = config.defaultSides || 'one-sided';
   document.getElementById('settingSingleBtn')?.classList.toggle('active', sides === 'one-sided');
   document.getElementById('settingDoubleBtn')?.classList.toggle('active', sides !== 'one-sided');
+
+  const method = config.winPrintMethod || 'electron';
+  document.getElementById('winPrintElectronBtn')?.classList.toggle('active', method === 'electron');
+  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active', method === 'sumatra');
 }
 async function setDefaultSides(sides) {
   config = await window.api.updateConfig({ defaultSides: sides });
   updateSettingsUI();
   showToast('Default sides saved', 'success');
+}
+async function setWinPrintMethod(method) {
+  config = await window.api.updateConfig({ winPrintMethod: method });
+  updateSettingsUI();
+  showToast('Windows print method saved', 'success');
 }
 
 // ═══════════════════════════════════════════════════════

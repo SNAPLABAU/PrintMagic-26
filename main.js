@@ -17,7 +17,8 @@ let config = {
   pendingFolder: '',
   printedFolder: '',
   stashFolder: '',
-  defaultSides: 'one-sided'
+  defaultSides: 'one-sided',
+  winPrintMethod: 'electron'   // 'electron' | 'sumatra'
 };
 
 // Config persistence
@@ -472,38 +473,76 @@ async function processQueue() {
   setTimeout(processQueue, 500);
 }
 
-async function sendToPrinter(job, printer) {
+// Use Electron's built-in Chromium renderer to print any file on Windows.
+// This avoids external tools (SumatraPDF, wscript) and works with the native
+// Windows print spooler directly.
+function electronPrint(filePath, printerName, options) {
   return new Promise((resolve, reject) => {
-    const ext = path.extname(job.filename).toLowerCase();
-    const filePath = job.pendingPath || job.filePath;
-    const sides = job.sides || 'one-sided';
+    const sides = options?.sides || 'one-sided';
+    const fileUrl = require('url').pathToFileURL(filePath).toString();
 
-    // PDFs always routed through osPrintPDF for actual-size / sides support
+    const win = new BrowserWindow({ show: false, webPreferences: { plugins: true } });
+    win.loadURL(fileUrl);
+
+    win.webContents.once('did-finish-load', () => {
+      // Short delay so PDF renderer has time to fully initialise
+      setTimeout(() => {
+        const printOpts = { silent: true, deviceName: printerName || '', printBackground: false };
+        if (sides === 'two-sided-long-edge') printOpts.duplexMode = 'longEdge';
+        else if (sides === 'two-sided-short-edge') printOpts.duplexMode = 'shortEdge';
+        win.webContents.print(printOpts, (success, reason) => {
+          win.destroy();
+          if (success) resolve();
+          else reject(new Error(reason || 'Print failed'));
+        });
+      }, 600);
+    });
+
+    win.webContents.once('did-fail-load', (event, code, desc) => {
+      win.destroy();
+      reject(new Error(desc || 'Failed to load file for printing'));
+    });
+  });
+}
+
+async function sendToPrinter(job, printer) {
+  const ext = path.extname(job.filename).toLowerCase();
+  const filePath = job.pendingPath || job.filePath;
+  const sides = job.sides || 'one-sided';
+  const rawExts = ['.zpl', '.epl', '.raw'];
+
+  // On Windows: RAW/label files always go through node-printer.
+  // For everything else, route based on the user's chosen print method.
+  if (process.platform === 'win32') {
+    if (printer.type === 'raw' || printer.rawMode || rawExts.includes(ext)) {
+      try {
+        const nodePrinter = require('node-printer');
+        const data = fs.readFileSync(filePath);
+        return new Promise((resolve, reject) => {
+          nodePrinter.printDirect({ data, printer: printer.name, type: printer.dataType || 'RAW', success: resolve, error: reject });
+        });
+      } catch (err) { /* node-printer not available, fall through */ }
+    }
+    if (config.winPrintMethod === 'sumatra') {
+      return new Promise((resolve, reject) => osPrintPDF(filePath, printer.name, { sides }, resolve, reject));
+    }
+    return electronPrint(filePath, printer.name, { sides });
+  }
+
+  // macOS / Linux: existing logic
+  return new Promise((resolve, reject) => {
     if (ext === '.pdf') {
       osPrintPDF(filePath, printer.name, { sides }, resolve, reject);
       return;
     }
-
     try {
       const nodePrinter = require('node-printer');
       if (printer.type === 'raw' || printer.rawMode) {
         const data = fs.readFileSync(filePath);
-        nodePrinter.printDirect({
-          data,
-          printer: printer.name,
-          type: printer.dataType || 'RAW',
-          success: resolve,
-          error: reject
-        });
+        nodePrinter.printDirect({ data, printer: printer.name, type: printer.dataType || 'RAW', success: resolve, error: reject });
       } else {
         const data = fs.readFileSync(filePath);
-        nodePrinter.printDirect({
-          data,
-          printer: printer.name,
-          type: getDataType(ext),
-          success: resolve,
-          error: reject
-        });
+        nodePrinter.printDirect({ data, printer: printer.name, type: getDataType(ext), success: resolve, error: reject });
       }
     } catch (err) {
       osPrint(filePath, printer.name, { sides }, resolve, reject);
@@ -520,12 +559,12 @@ function osPrintPDF(filePath, printerName, options, resolve, reject) {
 
   let cmd;
   if (process.platform === 'win32') {
-    // Try SumatraPDF for actual-size, fallback to shell PrintTo verb
-    const sumatra = '"C:\\Program Files\\SumatraPDF\\SumatraPDF.exe"';
+    // SumatraPDF: path must NOT be pre-quoted here — the template literal adds quotes.
+    const sumatra = 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe';
     if (safePrinter) {
       cmd = `"${sumatra}" -print-to "${safePrinter}" -print-settings "fit=none" "${safeFile}" 2>nul`;
     } else {
-      cmd = `powershell -Command "Start-Process -FilePath '${safeFile}' -Verb Print -Wait"`;
+      cmd = `"${sumatra}" -print-dialog "${safeFile}" 2>nul`;
     }
   } else {
     // macOS / Linux — CUPS lp
