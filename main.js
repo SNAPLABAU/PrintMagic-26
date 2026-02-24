@@ -18,7 +18,8 @@ let config = {
   printedFolder: '',
   stashFolder: '',
   defaultSides: 'one-sided',
-  winPrintMethod: 'electron',   // 'electron' | 'sumatra'
+  winPrintMethod: 'electron',   // 'electron' | 'shell' | 'sumatra'
+  printScale: 'actual',         // 'actual' | 'fit-page' | 'fit-width' | 'fit-height'
   defaultPageSize: 'A4',
   defaultColorMode: true        // true = color, false = grayscale
 };
@@ -149,6 +150,15 @@ ipcMain.handle('select-workspace', async (event) => {
 ipcMain.handle('get-config', () => config);
 ipcMain.handle('open-folder', (event, folderPath) => {
   if (folderPath && fs.existsSync(folderPath)) shell.openPath(folderPath);
+});
+
+// Opens the Windows native printer properties / preferences dialog for a named printer.
+// rundll32 printui.dll,PrintUIEntry /e shows the "Printing Preferences" dialog (driver UI).
+ipcMain.handle('open-printer-properties', (event, printerName) => {
+  if (process.platform !== 'win32') return;
+  const { exec } = require('child_process');
+  const safe = printerName.replace(/"/g, '\\"');
+  exec(`rundll32.exe printui.dll,PrintUIEntry /e /n "${safe}"`);
 });
 
 // ── File Watcher ───────────────────────────────────────────────────────────────
@@ -485,8 +495,10 @@ async function processQueue() {
 // Only copies and duplexMode are set at the job level.
 function electronPrint(filePath, printerName, options) {
   return new Promise((resolve, reject) => {
-    const sides  = options?.sides  || 'one-sided';
-    const copies = Math.max(1, parseInt(options?.copies, 10) || 1);
+    const sides   = options?.sides  || 'one-sided';
+    const copies  = Math.max(1, parseInt(options?.copies, 10) || 1);
+    const customW = parseFloat(options?.customWidthMm)  || 0;
+    const customH = parseFloat(options?.customHeightMm) || 0;
 
     const fileUrl = require('url').pathToFileURL(filePath).toString();
     const win = new BrowserWindow({ show: false, webPreferences: { plugins: true } });
@@ -500,10 +512,16 @@ function electronPrint(filePath, printerName, options) {
           deviceName: printerName || '',
           printBackground: false,
           copies,
-          // pageSize / color / landscape intentionally omitted — let the driver decide
         };
         if (sides === 'two-sided-long-edge')       printOpts.duplexMode = 'longEdge';
         else if (sides === 'two-sided-short-edge') printOpts.duplexMode = 'shortEdge';
+        // Custom page size: Chromium uses microns (1 mm = 1000 µm)
+        if (customW > 0 && customH > 0) {
+          printOpts.pageSize = {
+            width:  Math.round(customW * 1000),
+            height: Math.round(customH * 1000),
+          };
+        }
         win.webContents.print(printOpts, (success, reason) => {
           win.destroy();
           if (success) resolve();
@@ -523,7 +541,7 @@ function electronPrint(filePath, printerName, options) {
 // The OS hands the file to the registered default handler (Edge, Acrobat, etc.)
 // which prints it through the Windows driver — no Chromium rendering layer.
 // -EncodedCommand is used to sidestep PowerShell quoting entirely.
-function shellPrintTo(filePath, printerName) {
+function shellPrintTo(filePath, printerName, options) {
   return new Promise((resolve, reject) => {
     const { exec } = require('child_process');
 
@@ -531,12 +549,21 @@ function shellPrintTo(filePath, printerName) {
     const psFile    = filePath.replace(/'/g, "''");
     const psPrinter = printerName.replace(/'/g, "''");
 
+    const customW = parseFloat(options?.customWidthMm)  || 0;
+    const customH = parseFloat(options?.customHeightMm) || 0;
+
+    const lines = [];
+    // Apply custom paper size via Set-PrintConfiguration before printing.
+    // Units are 1/10 mm (e.g. 210 mm → 2100).
+    if (customW > 0 && customH > 0) {
+      lines.push(`Set-PrintConfiguration -PrinterName '${psPrinter}' -PaperWidth ${Math.round(customW * 10)} -PaperHeight ${Math.round(customH * 10)}`);
+    }
+    lines.push(`$f = '${psFile}'`);
+    lines.push(`$p = '${psPrinter}'`);
+    lines.push(`Start-Process -FilePath $f -Verb PrintTo -ArgumentList ('"' + $p + '"') -WindowStyle Hidden -Wait`);
+
     // PowerShell script: pass printer name double-quoted so PrintTo handler receives it
-    const psScript = [
-      `$f = '${psFile}'`,
-      `$p = '${psPrinter}'`,
-      `Start-Process -FilePath $f -Verb PrintTo -ArgumentList ('"' + $p + '"') -WindowStyle Hidden -Wait`,
-    ].join('; ');
+    const psScript = lines.join('; ');
 
     // Encode as UTF-16LE Base64 — the format -EncodedCommand expects
     const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
@@ -574,7 +601,7 @@ async function sendToPrinter(job, printer) {
       return new Promise((resolve, reject) => osPrintPDF(filePath, printer.name, { sides }, resolve, reject));
     }
     if (config.winPrintMethod === 'shell') {
-      return shellPrintTo(filePath, printer.name);
+      return shellPrintTo(filePath, printer.name, job.printOpts || {});
     }
     return electronPrint(filePath, printer.name, { sides, ...(job.printOpts || {}) });
   }
@@ -600,27 +627,35 @@ async function sendToPrinter(job, printer) {
   });
 }
 
-// PDF printing at actual size (no scaling) via CUPS / OS
+// PDF printing via SumatraPDF (Windows) or CUPS lp (macOS/Linux)
 function osPrintPDF(filePath, printerName, options, resolve, reject) {
   const { exec } = require('child_process');
   const sides = options?.sides || 'one-sided';
   const safeFile = filePath.replace(/"/g, '\\"');
   const safePrinter = printerName ? printerName.replace(/"/g, '\\"') : '';
 
+  // Map config.printScale to SumatraPDF fit keyword and CUPS option
+  const scaleMap = {
+    'actual':     { sumatra: 'fit=none',   cups: 'fit-to-page=no'  },
+    'fit-page':   { sumatra: 'fit=page',   cups: 'fit-to-page=yes' },
+    'fit-width':  { sumatra: 'fit=width',  cups: 'fit-to-page=yes' },
+    'fit-height': { sumatra: 'fit=height', cups: 'fit-to-page=yes' },
+  };
+  const scale = scaleMap[config.printScale] || scaleMap['actual'];
+
   let cmd;
   if (process.platform === 'win32') {
     // SumatraPDF: path must NOT be pre-quoted here — the template literal adds quotes.
     const sumatra = 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe';
     if (safePrinter) {
-      cmd = `"${sumatra}" -print-to "${safePrinter}" -print-settings "fit=none" "${safeFile}" 2>nul`;
+      cmd = `"${sumatra}" -print-to "${safePrinter}" -print-settings "${scale.sumatra}" "${safeFile}" 2>nul`;
     } else {
       cmd = `"${sumatra}" -print-dialog "${safeFile}" 2>nul`;
     }
   } else {
     // macOS / Linux — CUPS lp
-    // fit-to-page=no = actual size (document DPI, no scaling)
     const printerOpt = safePrinter ? `-d "${safePrinter}"` : '';
-    cmd = `lp ${printerOpt} -o fit-to-page=no -o sides=${sides} "${safeFile}"`;
+    cmd = `lp ${printerOpt} -o ${scale.cups} -o sides=${sides} "${safeFile}"`;
   }
 
   exec(cmd, { timeout: 30000 }, (err, stdout, stderr) => {

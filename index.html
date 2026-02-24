@@ -753,6 +753,28 @@
             </button>
           </div>
         </div>
+
+        <div class="settings-card">
+          <div>
+            <div class="settings-card-title">Print Scale</div>
+            <div class="settings-card-desc">Controls how the document is scaled onto the paper. <b>Actual Size</b> prints at 100% (document DPI). <b>Fit Page</b> scales to fill the full page. <b>Fit Width / Height</b> scale along one axis. Applied to SumatraPDF and CUPS (macOS/Linux).</div>
+          </div>
+          <div class="page-size-grid">
+            <button class="page-size-opt" id="scaleActualBtn" onclick="setPrintScale('actual')">
+              Actual Size
+            </button>
+            <button class="page-size-opt" id="scaleFitPageBtn" onclick="setPrintScale('fit-page')">
+              Fit Page
+            </button>
+            <button class="page-size-opt" id="scaleFitWidthBtn" onclick="setPrintScale('fit-width')">
+              Fit Width
+            </button>
+            <button class="page-size-opt" id="scaleFitHeightBtn" onclick="setPrintScale('fit-height')">
+              Fit Height
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -960,10 +982,11 @@ function renderPrinterPool() {
     const dotClass = p.paused ? 'dot-paused' : p.status === 'busy' ? 'dot-busy' : p.enabled ? 'dot-online' : 'dot-offline';
     const typeLabel = typeLabels[p.type] || p.type;
     const extras = [p.rawMode ? 'Raw Mode' : '', p.paused ? 'Paused' : '', p.currentJob ? 'Printing: ' + p.currentJob : ''].filter(Boolean).join(' · ');
-    return '<div class="printer-card ' + (!p.enabled ? 'disabled' : '') + ' ' + (p.paused ? 'paused' : '') + '" draggable="true" data-index="' + i + '" ondragstart="dragStart(event,' + i + ')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dragDrop(event,' + i + ')" ondragend="dragEnd(event)"><span class="printer-order">' + (i+1) + '</span><div class="printer-icon"><svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div><div class="printer-info"><div class="printer-name">' + p.name + '</div><div class="printer-type">' + typeLabel + (extras ? ' · ' + extras : '') + '</div></div><span class="printer-jobs-count">' + (p.jobCount||0) + ' jobs</span><div class="printer-status-dot ' + dotClass + '"></div><div class="printer-actions"><div class="icon-btn" onclick="togglePrinter(\'' + p.id + '\')" title="' + (p.enabled?'Disable':'Enable') + '">' + (p.enabled ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>') + '</div><div class="icon-btn danger" onclick="removePrinter(\'' + p.id + '\')" title="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></div></div></div>';
+    return '<div class="printer-card ' + (!p.enabled ? 'disabled' : '') + ' ' + (p.paused ? 'paused' : '') + '" draggable="true" data-index="' + i + '" ondragstart="dragStart(event,' + i + ')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dragDrop(event,' + i + ')" ondragend="dragEnd(event)"><span class="printer-order">' + (i+1) + '</span><div class="printer-icon"><svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div><div class="printer-info"><div class="printer-name">' + p.name + '</div><div class="printer-type">' + typeLabel + (extras ? ' · ' + extras : '') + '</div></div><span class="printer-jobs-count">' + (p.jobCount||0) + ' jobs</span><div class="printer-status-dot ' + dotClass + '"></div><div class="printer-actions"><div class="icon-btn" onclick="openPrinterProperties(' + i + ')" title="Printer Properties"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="icon-btn" onclick="togglePrinter(\'' + p.id + '\')" title="' + (p.enabled?'Disable':'Enable') + '">' + (p.enabled ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>') + '</div><div class="icon-btn danger" onclick="removePrinter(\'' + p.id + '\')" title="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></div></div></div>';
   }).join('');
 }
 async function togglePrinter(id) { printerPool = await window.api.togglePrinter(id); renderPrinterPool(); }
+function openPrinterProperties(idx) { window.api.openPrinterProperties(printerPool[idx].name); }
 async function removePrinter(id) {
   const p = printerPool.find(pp => pp.id === id);
   if (p) { printerPool = await window.api.removePrinter(id); renderPrinterPool(); loadSystemPrinters(); showToast('Removed: ' + p.name, 'error'); }
@@ -1014,6 +1037,12 @@ function updateSettingsUI() {
   const method = config.winPrintMethod || 'electron';
   document.getElementById('winPrintShellBtn')?.classList.toggle('active',    method === 'shell');
   document.getElementById('winPrintElectronBtn')?.classList.toggle('active', method === 'electron');
+
+  const scale = config.printScale || 'actual';
+  document.getElementById('scaleActualBtn')?.classList.toggle('active',    scale === 'actual');
+  document.getElementById('scaleFitPageBtn')?.classList.toggle('active',   scale === 'fit-page');
+  document.getElementById('scaleFitWidthBtn')?.classList.toggle('active',  scale === 'fit-width');
+  document.getElementById('scaleFitHeightBtn')?.classList.toggle('active', scale === 'fit-height');
   document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',  method === 'sumatra');
 }
 async function setDefaultSides(sides) {
@@ -1025,6 +1054,11 @@ async function setWinPrintMethod(method) {
   config = await window.api.updateConfig({ winPrintMethod: method });
   updateSettingsUI();
   showToast('Windows print method saved', 'success');
+}
+async function setPrintScale(scale) {
+  config = await window.api.updateConfig({ printScale: scale });
+  updateSettingsUI();
+  showToast('Print scale saved', 'success');
 }
 
 // ═══════════════════════════════════════════════════════

@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('api', {
   reprintStash: (filename) => ipcRenderer.invoke('reprint-stash', filename),
   deleteStash: (filename) => ipcRenderer.invoke('delete-stash', filename),
 
+  // Printer properties (Windows native driver dialog)
+  openPrinterProperties: (name) => ipcRenderer.invoke('open-printer-properties', name),
+
   // Events
   on: (channel, cb) => {
     const valid = [
