@@ -407,8 +407,17 @@
     background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-lg);
     padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;
   }
-  .settings-card-title { font-size: 14px; font-weight: 600; }
+  .settings-card-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .settings-card-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; line-height: 1.5; }
+  .method-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    font-family: var(--mono); padding: 2px 7px; border-radius: 4px;
+    background: rgba(124,106,247,0.15); border: 1px solid rgba(124,106,247,0.3); color: var(--accent);
+  }
+  .settings-card.inactive-for-method { opacity: 0.4; pointer-events: none; }
+  .settings-card.inactive-for-method::after {
+    content: ''; display: block;
+  }
   .sides-row { display: flex; gap: 10px; }
   .sides-opt {
     flex: 1; padding: 10px 14px; border-radius: 8px;
@@ -797,10 +806,13 @@
           </div>
         </div>
 
-        <div class="settings-card">
+        <div class="settings-card" id="printScaleCard">
           <div>
-            <div class="settings-card-title">Print Scale</div>
-            <div class="settings-card-desc"><b>Shrink to Fit</b> — recommended. Scales down only if the document extends beyond the printer's printable area (accounts for driver margins — prevents right/bottom clipping). <b>Actual Size</b> — 100%, ignores printer margins (may clip edges). <b>Fit Page</b> — always scales to fill the page. Applied to SumatraPDF and CUPS.</div>
+            <div class="settings-card-title">
+              Print Scale
+              <span class="method-badge">SumatraPDF</span>
+            </div>
+            <div class="settings-card-desc">Controls how SumatraPDF scales documents onto the page. <b>Shrink to Fit</b> — recommended; scales down only if content exceeds the printable area, preventing edge clipping. <b>Actual Size</b> — 100% with no scaling (may clip edges at driver margins). <b>Fit Page</b> — always scales to fill the full page.</div>
           </div>
           <div class="page-size-grid">
             <button class="page-size-opt" id="scaleActualBtn" onclick="setPrintScale('actual')">
@@ -1106,8 +1118,12 @@ function updateSettingsUI() {
   const method = config.winPrintMethod || 'electron';
   document.getElementById('winPrintShellBtn')?.classList.toggle('active',    method === 'shell');
   document.getElementById('winPrintElectronBtn')?.classList.toggle('active', method === 'electron');
+  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',  method === 'sumatra');
 
-  const scale = config.printScale || 'actual';
+  // Print Scale — only active for SumatraPDF; dim the card otherwise
+  const isSumatra = method === 'sumatra';
+  document.getElementById('printScaleCard')?.classList.toggle('inactive-for-method', !isSumatra);
+  const scale = config.printScale || 'shrink';
   document.getElementById('scaleActualBtn')?.classList.toggle('active',  scale === 'actual');
   document.getElementById('scaleShrinkBtn')?.classList.toggle('active',  scale === 'shrink');
   document.getElementById('scaleFitPageBtn')?.classList.toggle('active', scale === 'fit-page');
