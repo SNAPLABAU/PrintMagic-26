@@ -1,0 +1,82 @@
+# PrintQueue — Electron Print Queue Manager
+
+A professional print queue manager with folder watching, printer pool management, and support for specialty printers like the SwftPro K30.
+
+## Features
+
+- **Folder Watching**: Automatically detects files dropped into the `in` folder
+- **Printer Pool**: Add/remove printers, drag to reorder priority
+- **Three-Folder Workflow**: `in` → `pending` → `printed`
+- **Native Printing**: Uses `node-printer` for direct, driver-level printing
+- **Raw/Label Printer Support**: ZPL, EPL, RAW data types for printers like SwftPro K30
+- **Print History**: Track all jobs with retry for failed jobs
+- **Per-Printer Settings**: Toggle enabled/disabled, raw mode, data type
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm
+
+### Install
+
+```bash
+npm install
+```
+
+> **Note on `node-printer`**: This package requires native compilation. On Windows you may need the Visual C++ Build Tools. On macOS/Linux, Xcode CLI tools or `build-essential` are needed.
+>
+> If `node-printer` fails to compile, the app falls back to OS-level `lp` / `rundll32` printing automatically.
+
+### Run
+
+```bash
+npm start
+```
+
+## SwftPro K30 Setup
+
+1. Install the SwftPro K30 driver and ensure it appears in your system printers.
+2. In the **Printers** tab, either click the printer from the System Printers list (it will auto-detect) OR add it manually:
+   - **Printer Name**: Exact name as it appears in your OS
+   - **Type**: Label Printer (ZPL/EPL) or Raw/Custom
+   - **Raw Mode**: Toggle ON for direct data passthrough (bypasses driver processing)
+   - **Data Type**: Select RAW or ZPL depending on your file format
+
+## Workflow
+
+```
+[Drop file into IN folder]
+         ↓
+    [Detected by watcher]
+         ↓
+    [Added to queue]
+         ↓
+  [Assigned to printer by pool order]
+         ↓
+    [Moved to PENDING folder]
+         ↓
+    [Sent to printer]
+         ↓
+    [Moved to PRINTED folder]
+```
+
+## File Types Supported
+
+| Extension | Type | Notes |
+|-----------|------|-------|
+| .pdf | PDF | Standard PDF printing |
+| .txt | TEXT | Plain text |
+| .ps | PostScript | PS files |
+| .zpl | ZPL | Zebra label format |
+| .epl | EPL | Eltron label format |
+| .raw | RAW | Any raw printer data |
+| others | AUTO | Auto-detected |
+
+## Building (optional)
+
+```bash
+npm install --save-dev electron-builder
+npx electron-builder
+```

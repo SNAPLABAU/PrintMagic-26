@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrintMagic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --surface: #111114;
+    --surface2: #18181d;
+    --surface3: #1f1f26;
+    --border: #2a2a35;
+    --border-bright: #3d3d50;
+    --text: #e8e8f0;
+    --text-dim: #7070a0;
+    --text-muted: #40405a;
+    --accent: #7c6af7;
+    --accent-dim: #4a3fa0;
+    --accent-glow: rgba(124,106,247,0.15);
+    --green: #3ddc84;
+    --green-dim: #1a4a32;
+    --orange: #f59e0b;
+    --orange-dim: #4a3010;
+    --red: #f04f5a;
+    --red-dim: #4a1520;
+    --blue: #38bdf8;
+    --blue-dim: #0c2a40;
+    --amber: #fbbf24;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --radius: 8px;
+    --radius-lg: 14px;
+    --glass-bg: rgba(10, 10, 14, 0.92);
+    --glass-border: rgba(255, 255, 255, 0.09);
+    --glass-highlight: rgba(255, 255, 255, 0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* ── Titlebar ─────────────────────────────────────────── */
+  .titlebar {
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+  .titlebar-logo {
+    display: flex; align-items: center; gap: 10px;
+    -webkit-app-region: no-drag;
+  }
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-icon svg { width: 16px; height: 16px; fill: white; }
+  .logo-text {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    letter-spacing: 0.08em; color: var(--text);
+  }
+  .logo-text span { color: var(--accent); }
+  .titlebar-spacer { flex: 1; }
+  .watcher-badge {
+    -webkit-app-region: no-drag;
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+    cursor: pointer; transition: all 0.2s; font-size: 12px; font-weight: 500;
+    color: var(--text-dim);
+  }
+  .watcher-badge.active { border-color: var(--green); color: var(--green); background: rgba(61,220,132,0.06); }
+  .watcher-badge:hover { border-color: var(--border-bright); }
+  .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+  .watcher-badge.active .pulse-dot {
+    background: var(--green); box-shadow: 0 0 0 0 rgba(61,220,132,0.4);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(61,220,132,0.4); }
+    70%  { box-shadow: 0 0 0 6px rgba(61,220,132,0); }
+    100% { box-shadow: 0 0 0 0 rgba(61,220,132,0); }
+  }
+
+  /* ── Layout ───────────────────────────────────────────── */
+  .app-body { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Sidebar ──────────────────────────────────────────── */
+  .sidebar {
+    width: 220px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0;
+    padding: 16px 12px; gap: 4px;
+  }
+  .nav-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+    color: var(--text-muted); padding: 8px 10px 4px; text-transform: uppercase;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-radius: var(--radius); cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-size: 13.5px; font-weight: 500; color: var(--text-dim);
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--accent-glow); color: var(--accent); }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .nav-badge {
+    margin-left: auto; background: var(--surface3); color: var(--text-dim);
+    font-family: var(--mono); font-size: 10px; padding: 2px 7px;
+    border-radius: 10px; min-width: 22px; text-align: center;
+  }
+  .nav-item.active .nav-badge { background: var(--accent-dim); color: var(--accent); }
+  .nav-badge.alert { background: var(--amber); color: #000 !important; }
+
+  /* ── Main Content ─────────────────────────────────────── */
+  .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .view { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .view.active { display: flex; }
+
+  /* ── Page Header ──────────────────────────────────────── */
+  .page-header {
+    padding: 24px 28px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-shrink: 0;
+  }
+  .page-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .page-subtitle { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+  .page-header-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* ── Buttons ──────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 16px; border-radius: var(--radius); border: none;
+    cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 500;
+    transition: all 0.15s; -webkit-app-region: no-drag;
+  }
+  .btn svg { width: 14px; height: 14px; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #8f7ef9; }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--border-bright); color: var(--text); background: var(--surface2); }
+  .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid transparent; }
+  .btn-danger:hover { background: #5a1a22; }
+  .btn-sm { padding: 5px 11px; font-size: 12px; }
+  .btn-workspace {
+    background: linear-gradient(135deg, var(--accent-dim), rgba(124,106,247,0.3));
+    color: var(--accent); border: 1px solid var(--accent-dim); font-weight: 600;
+  }
+  .btn-workspace:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* ── Queue View ───────────────────────────────────────── */
+  .queue-body {
+    flex: 1; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr;
+  }
+  .queue-panel {
+    display: flex; flex-direction: column; overflow: hidden;
+    border-right: 1px solid var(--border);
+  }
+  .queue-panel:last-child { border-right: none; }
+  .queue-panel-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .queue-panel-title {
+    font-weight: 600; color: var(--text-dim); letter-spacing: 0.03em;
+    text-transform: uppercase; font-size: 11px;
+  }
+  .queue-count {
+    font-family: var(--mono); font-size: 11px; padding: 2px 8px;
+    border-radius: 10px; margin-left: auto;
+  }
+  .queue-count.queued  { background: var(--orange-dim); color: var(--orange); }
+  .queue-count.processing { background: var(--blue-dim); color: var(--blue); }
+  .queue-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .queue-list::-webkit-scrollbar { width: 4px; }
+  .queue-list::-webkit-scrollbar-track { background: transparent; }
+  .queue-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .queue-empty {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%; gap: 10px; color: var(--text-muted);
+  }
+  .queue-empty svg { width: 32px; height: 32px; opacity: 0.3; }
+  .queue-empty p { font-size: 13px; }
+  .job-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 6px;
+    display: flex; flex-direction: column; gap: 7px;
+    transition: border-color 0.2s; animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .job-card:hover { border-color: var(--border-bright); }
+  .job-card.processing { border-color: var(--accent-dim); background: rgba(124,106,247,0.04); }
+  .job-card.error { border-color: var(--red-dim); }
+  .job-card.printed { border-color: var(--green-dim); }
+  .job-top { display: flex; align-items: center; gap: 8px; }
+  .job-icon {
+    width: 30px; height: 30px; border-radius: 6px; background: var(--surface3);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    font-size: 11px; font-family: var(--mono); font-weight: 700; color: var(--text-dim);
+  }
+  .job-name {
+    font-size: 13px; font-weight: 500; color: var(--text); flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .job-status-badge {
+    font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
+  }
+  .badge-queued    { background: var(--orange-dim); color: var(--orange); }
+  .badge-processing { background: var(--blue-dim); color: var(--blue); animation: blink 1.5s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .badge-printed   { background: var(--green-dim); color: var(--green); }
+  .badge-error     { background: var(--red-dim); color: var(--red); }
+  .badge-stashed   { background: rgba(251,191,36,0.15); color: var(--amber); }
+  .job-meta { display: flex; gap: 12px; font-size: 11px; color: var(--text-muted); }
+  .job-meta span { display: flex; align-items: center; gap: 4px; }
+  .job-meta svg { width: 10px; height: 10px; }
+  .job-progress { height: 2px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+  .job-progress-fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    animation: progressAnim 1.5s ease-in-out infinite; width: 40%;
+  }
+  @keyframes progressAnim { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+  .job-error { font-size: 11px; color: var(--red); background: var(--red-dim); padding: 4px 8px; border-radius: 4px; }
+
+  /* ── Printers View ────────────────────────────────────── */
+  .printers-body { flex: 1; overflow: hidden; display: grid; grid-template-columns: 1fr 300px; }
+  .printer-list-panel { display: flex; flex-direction: column; overflow: hidden; padding: 20px 24px; gap: 16px; }
+  .printer-pool-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .printer-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 16px;
+    display: flex; align-items: center; gap: 14px;
+    transition: all 0.2s; cursor: grab; position: relative;
+  }
+  .printer-card:hover { border-color: var(--border-bright); }
+  .printer-card.disabled { opacity: 0.5; }
+  .printer-card.paused  { border-color: var(--amber); background: rgba(251,191,36,0.04); }
+  .printer-card.dragging  { opacity: 0.4; border-style: dashed; }
+  .printer-card.drag-over { border-color: var(--accent); background: var(--accent-glow); }
+  .printer-order { font-family: var(--mono); font-size: 11px; color: var(--text-muted); width: 20px; text-align: center; flex-shrink: 0; }
+  .printer-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--surface3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .printer-icon svg { width: 20px; height: 20px; fill: var(--text-dim); }
+  .printer-info { flex: 1; min-width: 0; }
+  .printer-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .printer-type { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .printer-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-online  { background: var(--green);  box-shadow: 0 0 6px rgba(61,220,132,0.5); }
+  .dot-busy    { background: var(--orange); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+  .dot-offline { background: var(--text-muted); }
+  .dot-paused  { background: var(--amber);  box-shadow: 0 0 6px rgba(251,191,36,0.4); }
+  .printer-actions { display: flex; gap: 6px; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s; color: var(--text-dim);
+  }
+  .icon-btn:hover { border-color: var(--border-bright); color: var(--text); background: var(--surface3); }
+  .icon-btn.danger:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+  .icon-btn svg { width: 13px; height: 13px; }
+  .printer-jobs-count { font-family: var(--mono); font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+  .printer-add-panel { border-left: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .add-panel-title { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .system-printer-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: var(--radius); border: 1px solid var(--border); cursor: pointer;
+    transition: all 0.15s; background: var(--surface2);
+  }
+  .system-printer-item:hover { border-color: var(--accent-dim); background: var(--accent-glow); }
+  .system-printer-item.already-added { opacity: 0.4; pointer-events: none; }
+  .system-printer-item-name { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .system-printer-item-status { font-size: 11px; color: var(--text-muted); }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+  .form-input, .form-select {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); padding: 8px 12px; font-family: var(--sans); font-size: 13px;
+    outline: none; transition: border-color 0.15s; width: 100%;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--accent); }
+  .form-select option { background: var(--surface3); }
+  .form-toggle { display: flex; align-items: center; justify-content: space-between; }
+  .toggle {
+    width: 36px; height: 20px; background: var(--surface3); border-radius: 10px;
+    position: relative; cursor: pointer; transition: background 0.2s; border: 1px solid var(--border);
+  }
+  .toggle.on { background: var(--accent); border-color: var(--accent); }
+  .toggle::after {
+    content: ''; position: absolute; width: 14px; height: 14px; background: white;
+    border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s;
+  }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* ── Folders View ─────────────────────────────────────── */
+  .folders-body { flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 20px; }
+  .workspace-banner {
+    background: linear-gradient(135deg, rgba(124,106,247,0.12), rgba(124,106,247,0.04));
+    border: 1px solid var(--accent-dim); border-radius: var(--radius-lg);
+    padding: 20px 24px; display: flex; align-items: center; gap: 16px;
+  }
+  .workspace-banner-icon {
+    width: 44px; height: 44px; background: var(--accent-dim); border-radius: 11px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .workspace-banner-icon svg { width: 22px; height: 22px; fill: var(--accent); }
+  .workspace-banner-text h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .workspace-banner-text p { font-size: 12px; color: var(--text-dim); }
+  .folder-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .folder-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 20px; display: flex; flex-direction: column; gap: 14px; transition: border-color 0.2s;
+  }
+  .folder-card:hover { border-color: var(--border-bright); }
+  .folder-card-icon { width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center; }
+  .folder-in      .folder-card-icon { background: rgba(124,106,247,0.15); }
+  .folder-pending .folder-card-icon { background: rgba(56,189,248,0.15); }
+  .folder-printed .folder-card-icon { background: rgba(61,220,132,0.15); }
+  .folder-stash   .folder-card-icon { background: rgba(251,191,36,0.15); }
+  .folder-card-icon svg { width: 22px; height: 22px; }
+  .folder-in      .folder-card-icon svg { fill: var(--accent); }
+  .folder-pending .folder-card-icon svg { fill: var(--blue); }
+  .folder-printed .folder-card-icon svg { fill: var(--green); }
+  .folder-stash   .folder-card-icon svg { fill: var(--amber); }
+  .folder-card-title { font-size: 15px; font-weight: 600; }
+  .folder-card-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  .folder-path {
+    background: var(--surface3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .folder-path:hover { border-color: var(--border-bright); color: var(--text); }
+  .folder-path.unset { color: var(--text-muted); font-family: var(--sans); font-size: 12px; }
+  .folder-count { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-dim); }
+  .folder-count-num { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--text); }
+
+  /* ── Stash View ───────────────────────────────────────── */
+  .stash-body { flex: 1; overflow-y: auto; padding: 20px 28px; display: flex; flex-direction: column; gap: 8px; }
+  .stash-item {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; display: flex; align-items: center; gap: 14px;
+    animation: slideIn 0.2s ease; transition: border-color 0.15s;
+  }
+  .stash-item:hover { border-color: var(--border-bright); }
+  .stash-item-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--amber); flex-shrink: 0;
+  }
+  .stash-item-info { flex: 1; min-width: 0; }
+  .stash-item-name { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stash-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .stash-item-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ── History View ─────────────────────────────────────── */
+  .history-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .history-table-wrap { flex: 1; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    padding: 10px 20px; text-align: left; font-size: 11px; font-weight: 600;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg);
+  }
+  tbody td { padding: 12px 20px; font-size: 13px; border-bottom: 1px solid var(--border); color: var(--text-dim); }
+  tbody tr:hover td { background: var(--surface2); }
+  tbody td:first-child { color: var(--text); font-weight: 500; }
+  .table-badge { display: inline-flex; align-items: center; gap: 5px; }
+
+  /* ── Divider / Toast / Modal ──────────────────────────── */
+  .section-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+  .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
+  .toast {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 16px; font-size: 13px; display: flex; align-items: center; gap: 10px;
+    animation: toastIn 0.3s ease; pointer-events: all; max-width: 300px;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+  .toast.success { border-color: var(--green-dim); }
+  .toast.error   { border-color: var(--red-dim); }
+  .toast-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .toast.success .toast-dot { background: var(--green); }
+  .toast.error   .toast-dot { background: var(--red); }
+  .toast-msg { flex: 1; }
+
+  /* ── Settings View ────────────────────────────────────── */
+  .settings-body { flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 20px; max-width: 600px; }
+  .settings-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;
+  }
+  .settings-card-title { font-size: 14px; font-weight: 600; }
+  .settings-card-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; line-height: 1.5; }
+  .sides-row { display: flex; gap: 10px; }
+  .sides-opt {
+    flex: 1; padding: 10px 14px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); font-family: var(--sans); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sides-opt:hover { border-color: var(--border-bright); color: var(--text); }
+  .sides-opt.active { background: var(--accent-glow); border-color: var(--accent-dim); color: var(--accent); }
+  .sides-opt svg { width: 14px; height: 14px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<!-- Titlebar -->
+<div class="titlebar">
+  <div class="titlebar-logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 10h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z"/></svg>
+    </div>
+    <span class="logo-text">PRINT<span>MAGIC</span></span>
+  </div>
+  <div class="titlebar-spacer"></div>
+  <div class="watcher-badge" id="watcherBadge" onclick="toggleWatcher()">
+    <div class="pulse-dot"></div>
+    <span id="watcherLabel">Watcher Off</span>
+  </div>
+</div>
+
+<!-- App Body -->
+<div class="app-body">
+  <nav class="sidebar">
+    <div class="nav-label">Main</div>
+    <div class="nav-item active" data-view="queue" onclick="switchView('queue')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Queue
+      <span class="nav-badge" id="navQueueCount">0</span>
+    </div>
+    <div class="nav-item" data-view="printers" onclick="switchView('printers')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Printers
+      <span class="nav-badge" id="navPrinterCount">0</span>
+    </div>
+    <hr class="section-divider" style="margin:8px 0">
+    <div class="nav-label">Folders</div>
+    <div class="nav-item" data-view="folders" onclick="switchView('folders')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Folder Setup
+    </div>
+    <hr class="section-divider" style="margin:8px 0">
+    <div class="nav-label">Records</div>
+    <div class="nav-item" data-view="stash" onclick="switchView('stash')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+      Stash
+      <span class="nav-badge" id="navStashCount">0</span>
+    </div>
+    <div class="nav-item" data-view="history" onclick="switchView('history')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      History
+      <span class="nav-badge" id="navHistoryCount">0</span>
+    </div>
+    <hr class="section-divider" style="margin:8px 0">
+    <div class="nav-item" data-view="settings" onclick="switchView('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </div>
+  </nav>
+
+  <div class="main">
+
+    <!-- Queue View -->
+    <div class="view active" id="view-queue">
+      <div class="page-header">
+        <div>
+          <div class="page-title">PrintMagic</div>
+          <div class="page-subtitle" id="queueStatus">Monitoring for new files...</div>
+        </div>
+      </div>
+      <div class="queue-body">
+        <div class="queue-panel">
+          <div class="queue-panel-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span class="queue-panel-title">Waiting</span>
+            <span class="queue-count queued" id="queuedCount">0</span>
+          </div>
+          <div class="queue-list" id="queuedList">
+            <div class="queue-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h18v18H3z"/><path d="M9 9h6M9 13h6"/></svg><p>No files waiting</p></div>
+          </div>
+        </div>
+        <div class="queue-panel">
+          <div class="queue-panel-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <span class="queue-panel-title">Processing</span>
+            <span class="queue-count processing" id="processingCount">0</span>
+          </div>
+          <div class="queue-list" id="processingList">
+            <div class="queue-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><p>Nothing printing</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Printers View -->
+    <div class="view" id="view-printers">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Printer Pool</div>
+          <div class="page-subtitle">Drag to reorder — files print to printers in order</div>
+        </div>
+      </div>
+      <div class="printers-body">
+        <div class="printer-list-panel">
+          <div id="printerPoolEmpty" class="queue-empty" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <p>No printers in pool — add from the right panel</p>
+          </div>
+          <div class="printer-pool-list" id="printerPoolList"></div>
+        </div>
+        <div class="printer-add-panel">
+          <div class="add-panel-title">System Printers</div>
+          <div id="systemPrintersList"></div>
+          <hr class="section-divider">
+          <div class="add-panel-title">Add Manually</div>
+          <div class="form-group">
+            <label class="form-label">Printer Name</label>
+            <input class="form-input" id="manualPrinterName" placeholder="e.g. SwftPro K30" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Type</label>
+            <select class="form-select" id="manualPrinterType">
+              <option value="standard">Standard</option>
+              <option value="label">Label Printer (ZPL/EPL)</option>
+              <option value="receipt">Receipt / POS</option>
+              <option value="raw">Raw / Custom</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Raw Data Type</label>
+            <select class="form-select" id="manualDataType">
+              <option value="AUTO">Auto-detect</option>
+              <option value="RAW">RAW</option>
+              <option value="PDF">PDF</option>
+              <option value="TEXT">TEXT</option>
+              <option value="POSTSCRIPT">PostScript</option>
+              <option value="ZPL">ZPL (Zebra)</option>
+            </select>
+          </div>
+          <div class="form-toggle">
+            <span class="form-label">Raw Mode (bypass driver)</span>
+            <div class="toggle" id="rawModeToggle" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <button class="btn btn-primary" onclick="addManualPrinter()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add to Pool
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Folders View -->
+    <div class="view" id="view-folders">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Folder Configuration</div>
+          <div class="page-subtitle">Select a workspace or configure folders individually</div>
+        </div>
+      </div>
+      <div class="folders-body">
+        <div class="workspace-banner">
+          <div class="workspace-banner-icon">
+            <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="workspace-banner-text" style="flex:1">
+            <h3>Quick Setup — Select a Workspace Folder</h3>
+            <p>Auto-creates <strong>in</strong>, <strong>pending</strong>, <strong>printed</strong>, and <strong>stash</strong> subdirectories inside your chosen folder.</p>
+          </div>
+          <button class="btn btn-workspace" onclick="selectWorkspace()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+            Select Workspace
+          </button>
+        </div>
+        <div class="folder-cards">
+          <div class="folder-card folder-in">
+            <div class="folder-card-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+            <div>
+              <div class="folder-card-title">Incoming (Watch)</div>
+              <div class="folder-card-desc">Drop files here — detected and queued for confirmation. Selecting this auto-creates pending/printed/stash siblings.</div>
+            </div>
+            <div class="folder-path unset" id="inFolderPath" onclick="openFolderInExplorer('inFolder')">Not set — click to configure</div>
+            <div class="folder-count"><span>Files waiting</span><span class="folder-count-num" id="inFolderCount">—</span></div>
+            <button class="btn btn-ghost btn-sm" onclick="selectFolder('inFolder')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Choose Folder
+            </button>
+          </div>
+          <div class="folder-card folder-pending">
+            <div class="folder-card-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+            <div>
+              <div class="folder-card-title">Pending (Printing)</div>
+              <div class="folder-card-desc">Files move here while being sent to a printer.</div>
+            </div>
+            <div class="folder-path unset" id="pendingFolderPath" onclick="openFolderInExplorer('pendingFolder')">Not set — click to configure</div>
+            <div class="folder-count"><span>Files in progress</span><span class="folder-count-num" id="pendingFolderCount">—</span></div>
+            <button class="btn btn-ghost btn-sm" onclick="selectFolder('pendingFolder')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Choose Folder
+            </button>
+          </div>
+          <div class="folder-card folder-printed">
+            <div class="folder-card-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+            <div>
+              <div class="folder-card-title">Printed (Archive)</div>
+              <div class="folder-card-desc">Completed files moved here after successful printing.</div>
+            </div>
+            <div class="folder-path unset" id="printedFolderPath" onclick="openFolderInExplorer('printedFolder')">Not set — click to configure</div>
+            <div class="folder-count"><span>Files archived</span><span class="folder-count-num" id="printedFolderCount">—</span></div>
+            <button class="btn btn-ghost btn-sm" onclick="selectFolder('printedFolder')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Choose Folder
+            </button>
+          </div>
+          <div class="folder-card folder-stash">
+            <div class="folder-card-icon"><svg viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></div>
+            <div>
+              <div class="folder-card-title">Stash (Safe Delete)</div>
+              <div class="folder-card-desc">Files stashed from the print dialogue. Reprint anytime from the Stash view.</div>
+            </div>
+            <div class="folder-path unset" id="stashFolderPath" onclick="openFolderInExplorer('stashFolder')">Not set — click to configure</div>
+            <div class="folder-count"><span>Files stashed</span><span class="folder-count-num" id="stashFolderCount">—</span></div>
+            <button class="btn btn-ghost btn-sm" onclick="selectFolder('stashFolder')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Choose Folder
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stash View -->
+    <div class="view" id="view-stash">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Stash</div>
+          <div class="page-subtitle">Safely stored files — reprint or permanently delete</div>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn btn-ghost btn-sm" onclick="loadStash()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div class="stash-body" id="stashList">
+        <div class="queue-empty" style="height:200px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+          <p>Stash is empty</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- History View -->
+    <div class="view" id="view-history">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Print History</div>
+          <div class="page-subtitle">Last 100 print jobs</div>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn btn-ghost btn-sm" onclick="clearHistory()">Clear History</button>
+        </div>
+      </div>
+      <div class="history-body">
+        <div class="history-table-wrap">
+          <table>
+            <thead>
+              <tr><th>Filename</th><th>Printer</th><th>Status</th><th>Started</th><th>Completed</th><th></th></tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">No print history yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings View -->
+    <div class="view" id="view-settings">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Settings</div>
+          <div class="page-subtitle">Application preferences</div>
+        </div>
+      </div>
+      <div class="settings-body">
+        <div class="settings-card">
+          <div>
+            <div class="settings-card-title">Default Print Sides</div>
+            <div class="settings-card-desc">Applied automatically when the print dialogue confirms a job. Can be changed here at any time.</div>
+          </div>
+          <div class="sides-row">
+            <button class="sides-opt active" id="settingSingleBtn" onclick="setDefaultSides('one-sided')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              Single-sided
+            </button>
+            <button class="sides-opt" id="settingDoubleBtn" onclick="setDefaultSides('two-sided-long-edge')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="8" height="18" rx="1"/><rect x="14" y="3" width="8" height="18" rx="1"/></svg>
+              Double-sided
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app-body -->
+
+<!-- Toasts -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentView = 'queue';
+let printerPool = [];
+let queueState = { queued: [], processing: [], history: [] };
+let config = {};
+let watcherActive = false;
+let dragSrcIndex = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  config = await window.api.getConfig();
+  printerPool = await window.api.getPrinterPool();
+  queueState = await window.api.getQueueState();
+
+  updateFolderUI();
+  updateSettingsUI();
+  renderPrinterPool();
+  renderQueue();
+  renderHistory();
+  updateFolderCounts();
+  await loadSystemPrinters();
+
+  window.api.on('queue-updated', (state) => {
+    queueState = state;
+    renderQueue();
+    renderHistory();
+    updateFolderCounts();
+  });
+  window.api.on('printers-updated', (pool) => {
+    printerPool = pool;
+    renderPrinterPool();
+  });
+  window.api.on('watcher-status', ({ active, folder }) => {
+    watcherActive = active;
+    updateWatcherBadge();
+    if (active) showToast('Watching: ' + folder, 'success');
+  });
+
+  watcherActive = !!(config.inFolder);
+  updateWatcherBadge();
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  document.querySelector('[data-view="' + view + '"]').classList.add('active');
+  currentView = view;
+  if (view === 'printers') loadSystemPrinters();
+  if (view === 'stash') loadStash();
+}
+
+// ── Watcher ───────────────────────────────────────────────────────────────────
+async function toggleWatcher() {
+  if (!config.inFolder) {
+    showToast('Set the incoming folder first', 'error');
+    switchView('folders');
+    return;
+  }
+  watcherActive = await window.api.toggleWatcher();
+  updateWatcherBadge();
+  showToast(watcherActive ? 'Watcher started' : 'Watcher stopped', watcherActive ? 'success' : 'error');
+}
+function updateWatcherBadge() {
+  const badge = document.getElementById('watcherBadge');
+  badge.classList.toggle('active', watcherActive);
+  document.getElementById('watcherLabel').textContent = watcherActive ? 'Watching' : 'Watcher Off';
+}
+
+// ── Folders ───────────────────────────────────────────────────────────────────
+async function selectFolder(type) {
+  const result = await window.api.selectFolder(type);
+  if (result) {
+    config = result.config;
+    updateFolderUI();
+    updateFolderCounts();
+    showToast('Folder saved', 'success');
+    if (type === 'inFolder') { watcherActive = true; updateWatcherBadge(); }
+  }
+}
+async function selectWorkspace() {
+  const result = await window.api.selectWorkspace();
+  if (result) {
+    config = result.config;
+    updateFolderUI();
+    updateFolderCounts();
+    watcherActive = true;
+    updateWatcherBadge();
+    showToast('Workspace configured — all folders created', 'success');
+  }
+}
+function openFolderInExplorer(type) {
+  if (config[type]) window.api.openFolder(config[type]);
+}
+function updateFolderUI() {
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (val) { el.textContent = val; el.classList.remove('unset'); }
+    else { el.textContent = 'Not set — click to configure'; el.classList.add('unset'); }
+  };
+  set('inFolderPath', config.inFolder);
+  set('pendingFolderPath', config.pendingFolder);
+  set('printedFolderPath', config.printedFolder);
+  set('stashFolderPath', config.stashFolder);
+}
+async function updateFolderCounts() {
+  const counts = await window.api.getFolderCounts();
+  document.getElementById('inFolderCount').textContent = counts.in ?? '—';
+  document.getElementById('pendingFolderCount').textContent = counts.pending ?? '—';
+  document.getElementById('printedFolderCount').textContent = counts.printed ?? '—';
+  document.getElementById('stashFolderCount').textContent = counts.stash ?? '—';
+  const stashBadge = document.getElementById('navStashCount');
+  stashBadge.textContent = counts.stash || '0';
+  stashBadge.classList.toggle('alert', counts.stash > 0);
+}
+
+// ── Queue ─────────────────────────────────────────────────────────────────────
+function renderQueue() {
+  const { queued, processing } = queueState;
+  document.getElementById('queuedCount').textContent = queued.length;
+  document.getElementById('processingCount').textContent = processing.length;
+  document.getElementById('navQueueCount').textContent = queued.length + processing.length;
+  renderJobList('queuedList', queued, 'queued');
+  renderJobList('processingList', processing, 'processing');
+  const total = queued.length + processing.length;
+  document.getElementById('queueStatus').textContent = total === 0 ? 'Queue is empty' : total + ' job' + (total > 1 ? 's' : '') + ' in queue';
+}
+function renderJobList(containerId, jobs, type) {
+  const container = document.getElementById(containerId);
+  if (jobs.length === 0) {
+    const icons = {
+      queued: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      processing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'
+    };
+    const msgs = { queued: 'No files waiting', processing: 'Nothing printing' };
+    container.innerHTML = '<div class="queue-empty">' + icons[type] + '<p>' + msgs[type] + '</p></div>';
+    return;
+  }
+  container.innerHTML = jobs.map(jobCardHTML).join('');
+}
+function jobCardHTML(job) {
+  const ext = job.filename.split('.').pop().toUpperCase().slice(0, 4);
+  const badgeClass = 'badge-' + job.status;
+  const statusLabel = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+  const time = job.addedAt ? new Date(job.addedAt).toLocaleTimeString() : '';
+  const printerMeta = job.printer ? '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>' + job.printer + '</span>' : '';
+  return '<div class="job-card ' + job.status + '"><div class="job-top"><div class="job-icon">' + ext + '</div><div class="job-name" title="' + job.filename + '">' + job.filename + '</div><span class="job-status-badge ' + badgeClass + '">' + statusLabel + '</span></div><div class="job-meta"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + time + '</span>' + printerMeta + '</div>' + (job.status === 'processing' ? '<div class="job-progress"><div class="job-progress-fill"></div></div>' : '') + (job.error ? '<div class="job-error">' + job.error + '</div>' : '') + '</div>';
+}
+
+// ── Printers ──────────────────────────────────────────────────────────────────
+async function loadSystemPrinters() {
+  const sysPrinters = await window.api.getSystemPrinters();
+  const container = document.getElementById('systemPrintersList');
+  if (!sysPrinters || sysPrinters.length === 0) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No system printers detected</p>';
+    return;
+  }
+  container.innerHTML = sysPrinters.map(p => {
+    const name = p.name || p.printerName || 'Unknown';
+    const alreadyAdded = printerPool.some(pp => pp.name === name);
+    return '<div class="system-printer-item ' + (alreadyAdded ? 'already-added' : '') + '" onclick="addSystemPrinter(\'' + name.replace(/'/g, "\\'") + '\')"><div style="flex:1"><div class="system-printer-item-name">' + name + '</div><div class="system-printer-item-status">' + (alreadyAdded ? 'Already in pool' : (p.status || 'Ready')) + '</div></div>' + (!alreadyAdded ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' : '') + '</div>';
+  }).join('');
+}
+async function addSystemPrinter(name) {
+  const printer = { id: 'sys-' + Date.now(), name, type: 'standard', rawMode: false, dataType: 'AUTO', source: 'system' };
+  printerPool = await window.api.addPrinter(printer);
+  renderPrinterPool(); loadSystemPrinters();
+  showToast('Added: ' + name, 'success');
+  document.getElementById('navPrinterCount').textContent = printerPool.filter(p => p.enabled).length;
+}
+async function addManualPrinter() {
+  const name = document.getElementById('manualPrinterName').value.trim();
+  if (!name) { showToast('Enter a printer name', 'error'); return; }
+  const printer = {
+    id: 'manual-' + Date.now(), name,
+    type: document.getElementById('manualPrinterType').value,
+    dataType: document.getElementById('manualDataType').value,
+    rawMode: document.getElementById('rawModeToggle').classList.contains('on'),
+    source: 'manual'
+  };
+  printerPool = await window.api.addPrinter(printer);
+  renderPrinterPool(); showToast('Added: ' + name, 'success');
+  document.getElementById('manualPrinterName').value = '';
+  document.getElementById('navPrinterCount').textContent = printerPool.filter(p => p.enabled).length;
+}
+function renderPrinterPool() {
+  const list = document.getElementById('printerPoolList');
+  const empty = document.getElementById('printerPoolEmpty');
+  document.getElementById('navPrinterCount').textContent = printerPool.filter(p => p.enabled).length;
+  if (printerPool.length === 0) { list.innerHTML = ''; empty.style.display = 'flex'; return; }
+  empty.style.display = 'none';
+  const typeLabels = { standard: 'Standard', label: 'Label Printer', receipt: 'Receipt', raw: 'Raw/Custom' };
+  list.innerHTML = printerPool.map((p, i) => {
+    const dotClass = p.paused ? 'dot-paused' : p.status === 'busy' ? 'dot-busy' : p.enabled ? 'dot-online' : 'dot-offline';
+    const typeLabel = typeLabels[p.type] || p.type;
+    const extras = [p.rawMode ? 'Raw Mode' : '', p.paused ? 'Paused' : '', p.currentJob ? 'Printing: ' + p.currentJob : ''].filter(Boolean).join(' · ');
+    return '<div class="printer-card ' + (!p.enabled ? 'disabled' : '') + ' ' + (p.paused ? 'paused' : '') + '" draggable="true" data-index="' + i + '" ondragstart="dragStart(event,' + i + ')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dragDrop(event,' + i + ')" ondragend="dragEnd(event)"><span class="printer-order">' + (i+1) + '</span><div class="printer-icon"><svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div><div class="printer-info"><div class="printer-name">' + p.name + '</div><div class="printer-type">' + typeLabel + (extras ? ' · ' + extras : '') + '</div></div><span class="printer-jobs-count">' + (p.jobCount||0) + ' jobs</span><div class="printer-status-dot ' + dotClass + '"></div><div class="printer-actions"><div class="icon-btn" onclick="togglePrinter(\'' + p.id + '\')" title="' + (p.enabled?'Disable':'Enable') + '">' + (p.enabled ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>') + '</div><div class="icon-btn danger" onclick="removePrinter(\'' + p.id + '\')" title="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></div></div></div>';
+  }).join('');
+}
+async function togglePrinter(id) { printerPool = await window.api.togglePrinter(id); renderPrinterPool(); }
+async function removePrinter(id) {
+  const p = printerPool.find(pp => pp.id === id);
+  if (p) { printerPool = await window.api.removePrinter(id); renderPrinterPool(); loadSystemPrinters(); showToast('Removed: ' + p.name, 'error'); }
+}
+
+// ── Drag & Drop ───────────────────────────────────────────────────────────────
+function dragStart(e, i) { dragSrcIndex = i; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+function dragOver(e)  { e.preventDefault(); e.currentTarget.classList.add('drag-over'); e.dataTransfer.dropEffect = 'move'; }
+function dragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function dragEnd(e)   { document.querySelectorAll('.printer-card').forEach(c => c.classList.remove('dragging', 'drag-over')); }
+async function dragDrop(e, targetIndex) {
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if (dragSrcIndex === null || dragSrcIndex === targetIndex) return;
+  const newOrder = [...printerPool];
+  const [moved] = newOrder.splice(dragSrcIndex, 1);
+  newOrder.splice(targetIndex, 0, moved);
+  printerPool = await window.api.reorderPrinters(newOrder);
+  renderPrinterPool(); dragSrcIndex = null;
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const { history } = queueState;
+  document.getElementById('navHistoryCount').textContent = history.length;
+  const tbody = document.getElementById('historyTableBody');
+  if (!history || history.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">No print history yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = history.map(job => {
+    const badgeClass = 'badge-' + job.status;
+    const statusLabel = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+    const started = job.startedAt ? new Date(job.startedAt).toLocaleString() : '—';
+    const completed = job.completedAt ? new Date(job.completedAt).toLocaleString() : '—';
+    const retryBtn = job.status === 'error' ? '<button class="btn btn-ghost btn-sm" onclick="retryJob(\'' + job.id + '\')">Retry</button>' : '';
+    return '<tr><td>' + job.filename + '</td><td>' + (job.printer||'—') + '</td><td><span class="table-badge"><span class="job-status-badge ' + badgeClass + '">' + statusLabel + '</span></span></td><td style="font-size:12px">' + started + '</td><td style="font-size:12px">' + completed + '</td><td>' + retryBtn + '</td></tr>';
+  }).join('');
+}
+async function retryJob(id) { queueState = await window.api.retryJob(id); renderQueue(); renderHistory(); showToast('Job requeued', 'success'); }
+async function clearHistory() { queueState = await window.api.clearHistory(); renderHistory(); showToast('History cleared', 'success'); }
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function updateSettingsUI() {
+  const sides = config.defaultSides || 'one-sided';
+  document.getElementById('settingSingleBtn')?.classList.toggle('active', sides === 'one-sided');
+  document.getElementById('settingDoubleBtn')?.classList.toggle('active', sides !== 'one-sided');
+}
+async function setDefaultSides(sides) {
+  config = await window.api.updateConfig({ defaultSides: sides });
+  updateSettingsUI();
+  showToast('Default sides saved', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+// STASH VIEW
+// ═══════════════════════════════════════════════════════
+async function loadStash() {
+  const files = await window.api.getStashFiles();
+  const container = document.getElementById('stashList');
+  const stashBadge = document.getElementById('navStashCount');
+  stashBadge.textContent = files.length || '0';
+  stashBadge.classList.toggle('alert', files.length > 0);
+
+  if (files.length === 0) {
+    container.innerHTML = '<div class="queue-empty" style="height:200px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg><p>Stash is empty</p></div>';
+    return;
+  }
+  container.innerHTML = files.map(f => {
+    const ext = f.filename.split('.').pop().toUpperCase().slice(0, 4);
+    const date = new Date(f.addedAt).toLocaleString();
+    const size = formatFileSize(f.size);
+    const safeName = f.filename.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return '<div class="stash-item"><div class="stash-item-icon">' + ext + '</div><div class="stash-item-info"><div class="stash-item-name" title="' + f.filename + '">' + f.filename + '</div><div class="stash-item-meta">' + date + ' · ' + size + '</div></div><div class="stash-item-actions"><button class="btn btn-ghost btn-sm" onclick="reprintStash(\'' + safeName + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Reprint</button><button class="btn btn-danger btn-sm" onclick="deleteStash(\'' + safeName + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete</button></div></div>';
+  }).join('');
+}
+async function reprintStash(filename) {
+  const result = await window.api.reprintStash(filename);
+  if (result.error) { showToast(result.error, 'error'); return; }
+  showToast('Sent to queue: ' + filename, 'success');
+  loadStash();
+}
+async function deleteStash(filename) {
+  const result = await window.api.deleteStash(filename);
+  if (result.error) { showToast(result.error, 'error'); return; }
+  showToast('Deleted from stash', 'success');
+  loadStash(); updateFolderCounts();
+}
+function formatFileSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// ── Toasts ────────────────────────────────────────────────────────────────────
+function showToast(msg, type) {
+  type = type || 'success';
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.innerHTML = '<div class="toast-dot"></div><span class="toast-msg">' + msg + '</span>';
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0'; toast.style.transform = 'translateX(20px)'; toast.style.transition = 'all 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+setInterval(updateFolderCounts, 5000);
+init();
+</script>
+</body>
+</html>

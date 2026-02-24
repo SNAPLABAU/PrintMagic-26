@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Print Confirmation</title>
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --surface2: #18181d;
+    --border: rgba(255,255,255,0.09);
+    --border-bright: rgba(255,255,255,0.16);
+    --text: #e8e8f0;
+    --text-dim: #7070a0;
+    --text-muted: #40405a;
+    --accent: #7c6af7;
+    --accent-dim: #4a3fa0;
+    --accent-glow: rgba(124,106,247,0.15);
+    --green: #3ddc84;
+    --red: #f04f5a;
+    --amber: #fbbf24;
+    --mono: 'Courier New', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    font-family: var(--sans);
+    color: var(--text);
+    -webkit-user-select: none;
+    user-select: none;
+    background: transparent;
+  }
+
+  body {
+    background: rgba(11, 11, 15, 0.97);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(124,106,247,0.08);
+  }
+
+  /* Top drag region */
+  .drag-region {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 10px;
+    -webkit-app-region: drag;
+    z-index: 10;
+  }
+
+  /* Wrapper holds main + side panel */
+  .wrapper {
+    display: flex;
+    height: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  /* ── Main Panel ─────────────────── */
+  .main-panel {
+    flex: 1;
+    padding: 20px 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .confirm-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    text-transform: uppercase;
+    font-family: var(--mono);
+    flex: 1;
+  }
+
+  .queue-badge {
+    background: rgba(124,106,247,0.18);
+    border: 1px solid var(--accent-dim);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+    display: none;
+  }
+  .queue-badge.visible { display: block; }
+
+  /* File row */
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+  }
+
+  .file-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: rgba(124,106,247,0.15);
+    border: 1px solid rgba(124,106,247,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--accent);
+    flex-shrink: 0;
+    letter-spacing: 0.03em;
+  }
+  .file-icon.pdf { background: rgba(240,79,90,0.15); border-color: rgba(240,79,90,0.25); color: var(--red); }
+
+  .file-name {
+    font-size: 14px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; min-width: 0;
+  }
+
+  /* Printer selector */
+  .printer-section { display: flex; flex-direction: column; gap: 5px; }
+
+  .section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+    color: var(--text-muted); text-transform: uppercase; font-family: var(--mono);
+  }
+
+  .printer-row { display: flex; align-items: center; gap: 8px; }
+
+  .nav-btn {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-dim);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+  }
+  .nav-btn:hover:not(:disabled) { border-color: var(--accent-dim); color: var(--accent); background: var(--accent-glow); }
+  .nav-btn:disabled { opacity: 0.25; cursor: default; }
+  .nav-btn svg { width: 12px; height: 12px; }
+
+  .printer-name {
+    flex: 1; text-align: center;
+    font-size: 15px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .printer-name.empty { color: var(--text-muted); font-size: 13px; font-weight: 400; }
+
+  .printer-idx {
+    text-align: center;
+    font-family: var(--mono); font-size: 10px; color: var(--text-muted);
+    height: 13px;
+  }
+
+  /* ── 4 Equal Action Buttons ─────── */
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 10px 6px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-dim);
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 66px;
+  }
+  .action-btn:hover {
+    border-color: var(--border-bright);
+    color: var(--text);
+    background: rgba(255,255,255,0.05);
+  }
+  .action-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .action-btn .lbl { font-size: 12px; font-weight: 600; }
+  .action-btn .kbd {
+    font-family: var(--mono); font-size: 8px; font-weight: 700; padding: 2px 5px;
+    border-radius: 3px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+    color: currentColor; letter-spacing: 0.03em;
+  }
+
+  .print-btn {
+    background: rgba(124,106,247,0.15);
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+  .print-btn:hover {
+    background: var(--accent); border-color: var(--accent); color: white;
+    box-shadow: 0 4px 16px rgba(124,106,247,0.35);
+  }
+  .stash-btn:hover { border-color: var(--amber); color: var(--amber); background: rgba(251,191,36,0.07); }
+
+  /* Hint */
+  .hint {
+    text-align: center; font-size: 10px; color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    padding-top: 2px;
+  }
+  .hint kbd {
+    font-family: var(--mono); font-size: 8px; font-weight: 700; padding: 2px 5px;
+    border-radius: 3px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-dim);
+  }
+
+  /* ── Side Panel ─────────────────── */
+  .side-panel {
+    width: 0; overflow: hidden;
+    background: rgba(8, 8, 12, 0.99);
+    transition: width 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    display: flex; flex-direction: column;
+  }
+  .side-panel.open {
+    width: 220px;
+    border-left: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .side-panel-inner {
+    width: 220px; padding: 20px 16px 16px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  .side-panel-title {
+    font-family: var(--mono); font-size: 9px; font-weight: 700;
+    letter-spacing: 0.14em; color: var(--text-muted); text-transform: uppercase;
+    padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .side-panel-title svg { width: 11px; height: 11px; }
+
+  .side-panel-list {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;
+  }
+  .side-panel-list::-webkit-scrollbar { width: 3px; }
+  .side-panel-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .sp-printer {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 11px; border-radius: 7px;
+    border: 1px solid rgba(255,255,255,0.06);
+    cursor: pointer; transition: all 0.15s;
+    background: rgba(255,255,255,0.02);
+  }
+  .sp-printer:hover { border-color: var(--amber); background: rgba(251,191,36,0.05); }
+  .sp-printer.paused { background: rgba(251,191,36,0.06); border-color: rgba(251,191,36,0.2); }
+
+  .sp-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .sp-name { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sp-state { font-family: var(--mono); font-size: 8px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.06em; }
+  .sp-printer.paused .sp-state { color: var(--amber); }
+
+  .side-panel-hint { font-size: 10px; color: var(--text-muted); text-align: center; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="drag-region"></div>
+
+<div class="wrapper">
+
+  <!-- Main Panel -->
+  <div class="main-panel">
+
+    <div class="header">
+      <span class="confirm-label">Print Confirmation</span>
+      <span class="queue-badge" id="queueBadge"></span>
+    </div>
+
+    <div class="file-row">
+      <div class="file-icon" id="fileIcon">FILE</div>
+      <div class="file-name" id="fileName">—</div>
+    </div>
+
+    <div class="printer-section">
+      <div class="section-label">Send To</div>
+      <div class="printer-row">
+        <button class="nav-btn" id="prevBtn" onclick="prevPrinter()" title="Previous (← ↑)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="printer-name" id="printerName">—</div>
+        <button class="nav-btn" id="nextBtn" onclick="nextPrinter()" title="Next (→ ↓)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <div class="printer-idx" id="printerIdx"></div>
+    </div>
+
+    <div class="actions">
+      <button class="action-btn" onclick="prevPrinter()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        <span class="lbl">Back</span>
+        <span class="kbd">← ↑</span>
+      </button>
+      <button class="action-btn print-btn" onclick="doPrint()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span class="lbl">Print</span>
+        <span class="kbd">SPACE</span>
+      </button>
+      <button class="action-btn stash-btn" onclick="doStash()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+        <span class="lbl">Stash</span>
+        <span class="kbd">S</span>
+      </button>
+      <button class="action-btn" onclick="nextPrinter()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        <span class="lbl">Next</span>
+        <span class="kbd">→ ↓</span>
+      </button>
+    </div>
+
+    <div class="hint">Press <kbd>X</kbd> to manage printer availability</div>
+
+  </div>
+
+  <!-- Side Panel (X key) -->
+  <div class="side-panel" id="sidePanel">
+    <div class="side-panel-inner">
+      <div class="side-panel-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        Pause Printer
+      </div>
+      <div class="side-panel-list" id="sidePanelList"></div>
+      <div class="side-panel-hint">Click to toggle — paused printers skip the queue</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let job = null;
+let printers = [];
+let allPrinters = [];
+let printerIdx = 0;
+let sidePanelOpen = false;
+let defaultSides = 'one-sided';
+
+window.dialogue.onInit((data) => load(data));
+window.dialogue.onUpdate((data) => load(data));
+
+function load(data) {
+  job = data.job;
+  printers = data.printers || [];
+  allPrinters = data.allPrinters || printers;
+  defaultSides = data.defaultSides || 'one-sided';
+  printerIdx = 0;
+
+  const ext = job.filename.split('.').pop().toUpperCase().slice(0, 4);
+  const icon = document.getElementById('fileIcon');
+  icon.textContent = ext;
+  icon.className = 'file-icon' + (ext === 'PDF' ? ' pdf' : '');
+  document.getElementById('fileName').textContent = job.filename;
+
+  updatePrinterDisplay();
+  updateQueueBadge(data.queueCount);
+  renderSidePanel();
+}
+
+function updatePrinterDisplay() {
+  const nameEl = document.getElementById('printerName');
+  const idxEl = document.getElementById('printerIdx');
+  const prev = document.getElementById('prevBtn');
+  const next = document.getElementById('nextBtn');
+
+  if (printers.length === 0) {
+    nameEl.textContent = 'No printers — add one first';
+    nameEl.className = 'printer-name empty';
+    idxEl.textContent = '';
+    prev.disabled = true;
+    next.disabled = true;
+    return;
+  }
+
+  nameEl.textContent = printers[printerIdx].name;
+  nameEl.className = 'printer-name';
+  idxEl.textContent = printers.length > 1 ? (printerIdx + 1) + ' of ' + printers.length : '';
+  prev.disabled = printers.length <= 1;
+  next.disabled = printers.length <= 1;
+}
+
+function prevPrinter() {
+  if (printers.length <= 1) return;
+  printerIdx = (printerIdx - 1 + printers.length) % printers.length;
+  updatePrinterDisplay();
+}
+
+function nextPrinter() {
+  if (printers.length <= 1) return;
+  printerIdx = (printerIdx + 1) % printers.length;
+  updatePrinterDisplay();
+}
+
+function updateQueueBadge(count) {
+  const badge = document.getElementById('queueBadge');
+  if (count > 1) {
+    badge.textContent = '+' + (count - 1) + ' more';
+    badge.className = 'queue-badge visible';
+  } else {
+    badge.className = 'queue-badge';
+  }
+}
+
+async function doPrint() {
+  if (!job || printers.length === 0) return;
+  const printer = printers[printerIdx];
+  await window.dialogue.confirmPrint({ jobId: job.id, printerName: printer.name, sides: defaultSides });
+}
+
+async function doStash() {
+  if (!job) return;
+  await window.dialogue.stashJob(job.id);
+}
+
+async function toggleSidePanel() {
+  sidePanelOpen = !sidePanelOpen;
+  document.getElementById('sidePanel').classList.toggle('open', sidePanelOpen);
+  await window.dialogue.togglePanel();
+}
+
+async function pausePrinter(id) {
+  allPrinters = await window.dialogue.pausePrinter(id);
+  printers = allPrinters.filter(p => p.enabled && !p.paused);
+  if (printerIdx >= printers.length) printerIdx = Math.max(0, printers.length - 1);
+  updatePrinterDisplay();
+  renderSidePanel();
+}
+
+function renderSidePanel() {
+  const list = document.getElementById('sidePanelList');
+  if (!allPrinters || allPrinters.length === 0) {
+    list.innerHTML = '<p style="font-size:11px;color:var(--text-muted);text-align:center;padding:10px 0">No printers in pool</p>';
+    return;
+  }
+  list.innerHTML = allPrinters.map(p => {
+    const dotColor = p.paused ? '#fbbf24' : p.status === 'busy' ? '#f59e0b' : p.enabled ? '#3ddc84' : '#40405a';
+    return '<div class="sp-printer ' + (p.paused ? 'paused' : '') + '" onclick="pausePrinter(\'' + p.id + '\')">'
+      + '<div class="sp-dot" style="background:' + dotColor + '"></div>'
+      + '<div class="sp-name">' + p.name + '</div>'
+      + '<div class="sp-state">' + (p.paused ? 'PAUSED' : 'ACTIVE') + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  switch (e.code) {
+    case 'Space':     e.preventDefault(); doPrint(); break;
+    case 'KeyS':      e.preventDefault(); doStash(); break;
+    case 'ArrowRight':
+    case 'ArrowDown': e.preventDefault(); nextPrinter(); break;
+    case 'ArrowLeft':
+    case 'ArrowUp':   e.preventDefault(); prevPrinter(); break;
+    case 'KeyX':      e.preventDefault(); toggleSidePanel(); break;
+    case 'Escape':    e.preventDefault(); window.dialogue.closeDialogue(); break;
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "printqueue",
+  "version": "1.0.0",
+  "description": "Professional Print Queue Manager",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "node-printer": "^1.0.1"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0"
+  }
+}
