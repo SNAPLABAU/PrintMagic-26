@@ -736,9 +736,13 @@
         <div class="settings-card" id="winPrintCard">
           <div>
             <div class="settings-card-title">Windows Print Method</div>
-            <div class="settings-card-desc">Choose how files are sent to the printer on Windows. <b>Built-in (Electron)</b> works out of the box. <b>SumatraPDF</b> requires SumatraPDF to be installed at its default path and gives more control over scaling.</div>
+            <div class="settings-card-desc"><b>Shell (PrintTo)</b> — hands the file to Windows' registered default handler (Edge, Acrobat, etc.) via ShellExecuteEx, which prints through the driver natively. <b>Built-in (Electron)</b> uses Chromium's renderer. <b>SumatraPDF</b> requires SumatraPDF installed at its default path.</div>
           </div>
           <div class="sides-row">
+            <button class="sides-opt" id="winPrintShellBtn" onclick="setWinPrintMethod('shell')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
+              Shell (PrintTo)
+            </button>
             <button class="sides-opt active" id="winPrintElectronBtn" onclick="setWinPrintMethod('electron')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
               Built-in (Electron)
@@ -1008,8 +1012,9 @@ function updateSettingsUI() {
   document.getElementById('settingDoubleBtn')?.classList.toggle('active', sides !== 'one-sided');
 
   const method = config.winPrintMethod || 'electron';
+  document.getElementById('winPrintShellBtn')?.classList.toggle('active',    method === 'shell');
   document.getElementById('winPrintElectronBtn')?.classList.toggle('active', method === 'electron');
-  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active', method === 'sumatra');
+  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',  method === 'sumatra');
 }
 async function setDefaultSides(sides) {
   config = await window.api.updateConfig({ defaultSides: sides });

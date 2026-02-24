@@ -519,6 +519,39 @@ function electronPrint(filePath, printerName, options) {
   });
 }
 
+// Invoke Windows ShellExecuteEx PrintTo verb via PowerShell.
+// The OS hands the file to the registered default handler (Edge, Acrobat, etc.)
+// which prints it through the Windows driver — no Chromium rendering layer.
+// -EncodedCommand is used to sidestep PowerShell quoting entirely.
+function shellPrintTo(filePath, printerName) {
+  return new Promise((resolve, reject) => {
+    const { exec } = require('child_process');
+
+    // Single-quote escape for PowerShell string literals
+    const psFile    = filePath.replace(/'/g, "''");
+    const psPrinter = printerName.replace(/'/g, "''");
+
+    // PowerShell script: pass printer name double-quoted so PrintTo handler receives it
+    const psScript = [
+      `$f = '${psFile}'`,
+      `$p = '${psPrinter}'`,
+      `Start-Process -FilePath $f -Verb PrintTo -ArgumentList ('"' + $p + '"') -WindowStyle Hidden -Wait`,
+    ].join('; ');
+
+    // Encode as UTF-16LE Base64 — the format -EncodedCommand expects
+    const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+
+    exec(
+      `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+      { timeout: 60000 },
+      (err, _stdout, stderr) => {
+        if (err) reject(new Error(stderr || err.message));
+        else resolve();
+      }
+    );
+  });
+}
+
 async function sendToPrinter(job, printer) {
   const ext = path.extname(job.filename).toLowerCase();
   const filePath = job.pendingPath || job.filePath;
@@ -539,6 +572,9 @@ async function sendToPrinter(job, printer) {
     }
     if (config.winPrintMethod === 'sumatra') {
       return new Promise((resolve, reject) => osPrintPDF(filePath, printer.name, { sides }, resolve, reject));
+    }
+    if (config.winPrintMethod === 'shell') {
+      return shellPrintTo(filePath, printer.name);
     }
     return electronPrint(filePath, printer.name, { sides, ...(job.printOpts || {}) });
   }
