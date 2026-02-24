@@ -271,6 +271,34 @@
   .sp-printer.paused .sp-state { color: var(--amber); }
 
   .side-panel-hint { font-size: 10px; color: var(--text-muted); text-align: center; line-height: 1.5; }
+
+  /* ── Copies row ─────────────────────── */
+  .copies-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .copies-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+    color: var(--text-muted); text-transform: uppercase; font-family: var(--mono);
+    flex: 1;
+  }
+  .copies-ctrl {
+    display: flex; align-items: center;
+    border: 1px solid var(--border); border-radius: 7px;
+    background: rgba(255,255,255,0.03); height: 28px; overflow: hidden;
+  }
+  .copies-ctrl button {
+    background: none; border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim); font-size: 15px;
+    cursor: pointer; padding: 0 8px; height: 100%; line-height: 1;
+    transition: all 0.15s; font-family: var(--mono);
+  }
+  .copies-ctrl button:last-child { border-right: none; border-left: 1px solid var(--border); }
+  .copies-ctrl button:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .copies-ctrl span {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--text); min-width: 26px; text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -304,6 +332,15 @@
         </button>
       </div>
       <div class="printer-idx" id="printerIdx"></div>
+    </div>
+
+    <div class="copies-row">
+      <span class="copies-label">Copies</span>
+      <div class="copies-ctrl">
+        <button onclick="addCopies(-1)" title="Fewer copies">−</button>
+        <span id="copiesCount">1</span>
+        <button onclick="addCopies(1)" title="More copies">+</button>
+      </div>
     </div>
 
     <div class="actions">
@@ -355,6 +392,8 @@ let printerIdx = 0;
 let sidePanelOpen = false;
 let defaultSides = 'one-sided';
 
+let printCopies = 1;
+
 window.dialogue.onInit((data) => load(data));
 window.dialogue.onUpdate((data) => load(data));
 
@@ -363,7 +402,8 @@ function load(data) {
   printers = data.printers || [];
   allPrinters = data.allPrinters || printers;
   defaultSides = data.defaultSides || 'one-sided';
-  printerIdx = 0;
+  printCopies  = 1;
+  printerIdx   = 0;
 
   const ext = job.filename.split('.').pop().toUpperCase().slice(0, 4);
   const icon = document.getElementById('fileIcon');
@@ -372,8 +412,14 @@ function load(data) {
   document.getElementById('fileName').textContent = job.filename;
 
   updatePrinterDisplay();
+  document.getElementById('copiesCount').textContent = printCopies;
   updateQueueBadge(data.queueCount);
   renderSidePanel();
+}
+
+function addCopies(delta) {
+  printCopies = Math.max(1, Math.min(99, printCopies + delta));
+  document.getElementById('copiesCount').textContent = printCopies;
 }
 
 function updatePrinterDisplay() {
@@ -423,7 +469,12 @@ function updateQueueBadge(count) {
 async function doPrint() {
   if (!job || printers.length === 0) return;
   const printer = printers[printerIdx];
-  await window.dialogue.confirmPrint({ jobId: job.id, printerName: printer.name, sides: defaultSides });
+  await window.dialogue.confirmPrint({
+    jobId: job.id,
+    printerName: printer.name,
+    sides: defaultSides,
+    printOpts: { copies: printCopies }
+  });
 }
 
 async function doStash() {

@@ -18,7 +18,9 @@ let config = {
   printedFolder: '',
   stashFolder: '',
   defaultSides: 'one-sided',
-  winPrintMethod: 'electron'   // 'electron' | 'sumatra'
+  winPrintMethod: 'electron',   // 'electron' | 'sumatra'
+  defaultPageSize: 'A4',
+  defaultColorMode: true        // true = color, false = grayscale
 };
 
 // Config persistence
@@ -199,7 +201,9 @@ function getDialogueData() {
     printers: printerPool.filter(p => p.enabled && !p.paused),
     allPrinters: printerPool,
     queueCount: pendingDialogueJobs.length,
-    defaultSides: config.defaultSides || 'one-sided'
+    defaultSides: config.defaultSides || 'one-sided',
+    defaultPageSize: config.defaultPageSize || 'A4',
+    defaultColorMode: config.defaultColorMode !== undefined ? config.defaultColorMode : true
   };
 }
 
@@ -259,7 +263,7 @@ function createDialogueWindow() {
 
 // ── Dialogue Actions ───────────────────────────────────────────────────────────
 
-ipcMain.handle('confirm-print', async (event, { jobId, printerName, sides }) => {
+ipcMain.handle('confirm-print', async (event, { jobId, printerName, sides, printOpts }) => {
   const idx = pendingDialogueJobs.findIndex(j => j.id === jobId);
   if (idx === -1) return { error: 'Job not found' };
 
@@ -270,6 +274,7 @@ ipcMain.handle('confirm-print', async (event, { jobId, printerName, sides }) => 
   job.status = 'queued';
   job.printer = printerName;
   job.sides = sides || 'one-sided';
+  job.printOpts = printOpts || {};
 
   jobQueue.push(job);
   mainWindow?.webContents.send('queue-updated', getQueueState());
@@ -474,21 +479,30 @@ async function processQueue() {
 }
 
 // Use Electron's built-in Chromium renderer to print any file on Windows.
-// This avoids external tools (SumatraPDF, wscript) and works with the native
-// Windows print spooler directly.
+// Passes the job straight to the Windows print spooler for the named printer.
+// We deliberately do NOT set pageSize / color / landscape — the printer driver's
+// own configured defaults (paper type, quality, ICC profile, etc.) are used.
+// Only copies and duplexMode are set at the job level.
 function electronPrint(filePath, printerName, options) {
   return new Promise((resolve, reject) => {
-    const sides = options?.sides || 'one-sided';
-    const fileUrl = require('url').pathToFileURL(filePath).toString();
+    const sides  = options?.sides  || 'one-sided';
+    const copies = Math.max(1, parseInt(options?.copies, 10) || 1);
 
+    const fileUrl = require('url').pathToFileURL(filePath).toString();
     const win = new BrowserWindow({ show: false, webPreferences: { plugins: true } });
     win.loadURL(fileUrl);
 
     win.webContents.once('did-finish-load', () => {
       // Short delay so PDF renderer has time to fully initialise
       setTimeout(() => {
-        const printOpts = { silent: true, deviceName: printerName || '', printBackground: false };
-        if (sides === 'two-sided-long-edge') printOpts.duplexMode = 'longEdge';
+        const printOpts = {
+          silent: true,
+          deviceName: printerName || '',
+          printBackground: false,
+          copies,
+          // pageSize / color / landscape intentionally omitted — let the driver decide
+        };
+        if (sides === 'two-sided-long-edge')       printOpts.duplexMode = 'longEdge';
         else if (sides === 'two-sided-short-edge') printOpts.duplexMode = 'shortEdge';
         win.webContents.print(printOpts, (success, reason) => {
           win.destroy();
@@ -498,7 +512,7 @@ function electronPrint(filePath, printerName, options) {
       }, 600);
     });
 
-    win.webContents.once('did-fail-load', (event, code, desc) => {
+    win.webContents.once('did-fail-load', (_e, _code, desc) => {
       win.destroy();
       reject(new Error(desc || 'Failed to load file for printing'));
     });
@@ -526,7 +540,7 @@ async function sendToPrinter(job, printer) {
     if (config.winPrintMethod === 'sumatra') {
       return new Promise((resolve, reject) => osPrintPDF(filePath, printer.name, { sides }, resolve, reject));
     }
-    return electronPrint(filePath, printer.name, { sides });
+    return electronPrint(filePath, printer.name, { sides, ...(job.printOpts || {}) });
   }
 
   // macOS / Linux: existing logic
