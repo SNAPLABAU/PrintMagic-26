@@ -771,7 +771,7 @@ async function sendToPrinter(job, printer) {
     };
 
     if (config.winPrintMethod === 'sumatra') {
-      return new Promise((resolve, reject) => osPrintPDF(filePath, printer.name, { sides }, resolve, reject));
+      return new Promise((resolve, reject) => osPrintPDF(filePath, printer.name, mergedOpts, resolve, reject));
     }
     if (config.winPrintMethod === 'ghostscript') {
       return ghostscriptPrint(filePath, printer.name, mergedOpts);
@@ -812,8 +812,10 @@ async function sendToPrinter(job, printer) {
 // PDF printing via SumatraPDF (Windows) or CUPS lp (macOS/Linux)
 function osPrintPDF(filePath, printerName, options, resolve, reject) {
   const { exec } = require('child_process');
-  const sides = options?.sides || 'one-sided';
-  const safeFile = filePath.replace(/"/g, '\\"');
+  const sides    = options?.sides || 'one-sided';
+  const customW  = parseFloat(options?.customWidthMm)  || 0;
+  const customH  = parseFloat(options?.customHeightMm) || 0;
+  const safeFile    = filePath.replace(/"/g, '\\"');
   const safePrinter = printerName ? printerName.replace(/"/g, '\\"') : '';
 
   // Map config.printScale → SumatraPDF -print-settings token and CUPS lp option.
@@ -834,10 +836,20 @@ function osPrintPDF(filePath, printerName, options, resolve, reject) {
 
   let cmd;
   if (process.platform === 'win32') {
-    // SumatraPDF: path must NOT be pre-quoted here — the template literal adds quotes.
     const sumatra = 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe';
     if (safePrinter) {
-      cmd = `"${sumatra}" -print-to "${safePrinter}" -print-settings "${sumatraScale}" "${safeFile}" 2>nul`;
+      if (customW > 0 && customH > 0) {
+        // Set paper size on the driver first (1/10 mm units), then invoke SumatraPDF.
+        // Use PowerShell EncodedCommand to avoid quoting issues with spaces in paths.
+        const psPrinter = printerName.replace(/'/g, "''");
+        const psFile    = filePath.replace(/'/g, "''");
+        const psScript  = `Set-PrintConfiguration -PrinterName '${psPrinter}' -PaperWidth ${Math.round(customW * 10)} -PaperHeight ${Math.round(customH * 10)} -ErrorAction SilentlyContinue
+& 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' -print-to '${psPrinter}' -print-settings '${sumatraScale}' '${psFile}'`;
+        const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+        cmd = `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`;
+      } else {
+        cmd = `"${sumatra}" -print-to "${safePrinter}" -print-settings "${sumatraScale}" "${safeFile}" 2>nul`;
+      }
     } else {
       cmd = `"${sumatra}" -print-dialog "${safeFile}" 2>nul`;
     }
@@ -847,7 +859,7 @@ function osPrintPDF(filePath, printerName, options, resolve, reject) {
     cmd = `lp ${printerOpt} -o ${scale.cups} -o sides=${sides} "${safeFile}"`;
   }
 
-  exec(cmd, { timeout: 30000 }, (err, stdout, stderr) => {
+  exec(cmd, { timeout: 60000 }, (err, stdout, stderr) => {
     if (err && !stdout) {
       // Fallback for Windows if SumatraPDF not found
       if (process.platform === 'win32') {
