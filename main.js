@@ -20,6 +20,7 @@ let config = {
   defaultSides: 'one-sided',
   winPrintMethod: 'electron',   // 'electron' | 'shell' | 'sumatra'
   printScale: 'shrink',         // 'actual' | 'shrink' | 'fit-page'
+  printScalePercent: 0,         // 0 = use printScale mode; >0 overrides with e.g. 110%
   defaultCopies:   1,
   defaultWidthMm:  0,           // 0 = let driver decide
   defaultHeightMm: 0,
@@ -670,9 +671,7 @@ $foxitPaths = @(
 $foxitExe = $foxitPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $foxitExe) { Write-Error 'Foxit PDF Reader not found. Install from foxit.com'; exit 1 }
 1..${copies} | ForEach-Object {
-  Start-Process -FilePath $foxitExe -ArgumentList '/t', $f, $p -WindowStyle Hidden -Wait
-  # Foxit exits after handing off to the spooler, but the file must stay on disk
-  # until the spooler has finished. Poll Get-PrintJob until the queue clears.
+  Start-Process -FilePath $foxitExe -ArgumentList "/t \`"$f\`" \`"$p\`"" -WindowStyle Hidden -Wait
   $waited = 0
   do {
     Start-Sleep -Seconds 2
@@ -828,13 +827,17 @@ function osPrintPDF(filePath, printerName, options, resolve, reject) {
     'fit-height': { sumatra: 'fit',     cups: 'fit-to-page=yes' },
   };
   const scale = scaleMap[config.printScale] || scaleMap['actual'];
+  // printScalePercent > 0 overrides the mode keyword with a direct % value (e.g. "110%")
+  const sumatraScale = (config.printScalePercent || 0) > 0
+    ? `${Math.round(config.printScalePercent)}%`
+    : scale.sumatra;
 
   let cmd;
   if (process.platform === 'win32') {
     // SumatraPDF: path must NOT be pre-quoted here — the template literal adds quotes.
     const sumatra = 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe';
     if (safePrinter) {
-      cmd = `"${sumatra}" -print-to "${safePrinter}" -print-settings "${scale.sumatra}" "${safeFile}" 2>nul`;
+      cmd = `"${sumatra}" -print-to "${safePrinter}" -print-settings "${sumatraScale}" "${safeFile}" 2>nul`;
     } else {
       cmd = `"${sumatra}" -print-dialog "${safeFile}" 2>nul`;
     }

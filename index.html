@@ -431,7 +431,7 @@
   .sides-opt svg { width: 14px; height: 14px; flex-shrink: 0; }
   .page-size-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
   }
   .page-size-opt {
@@ -824,7 +824,7 @@
               Print Scale
               <span class="method-badge">SumatraPDF</span>
             </div>
-            <div class="settings-card-desc">Controls how SumatraPDF scales documents onto the page. <b>Shrink to Fit</b> — recommended; scales down only if content exceeds the printable area, preventing edge clipping. <b>Actual Size</b> — 100% with no scaling (may clip edges at driver margins). <b>Fit Page</b> — always scales to fill the full page.</div>
+            <div class="settings-card-desc">Controls how SumatraPDF scales documents onto the page. <b>Shrink to Fit</b> — recommended; scales down only if content exceeds the printable area, preventing edge clipping. <b>Actual Size</b> — 100% with no scaling (may clip edges at driver margins). <b>Fit Page</b> — always scales to fill the full page. <b>Fit to Width</b> — scales horizontally to fill the page width.</div>
           </div>
           <div class="page-size-grid">
             <button class="page-size-opt" id="scaleActualBtn" onclick="setPrintScale('actual')">
@@ -836,6 +836,17 @@
             <button class="page-size-opt" id="scaleFitPageBtn" onclick="setPrintScale('fit-page')">
               Fit Page
             </button>
+            <button class="page-size-opt" id="scaleFitWidthBtn" onclick="setPrintScale('fit-width')">
+              Fit to Width
+            </button>
+          </div>
+          <div class="size-setting-row">
+            <span class="size-setting-unit">Custom&nbsp;%</span>
+            <input type="number" id="scalePercentInput" class="size-setting-input"
+              min="50" max="300" step="1" placeholder="e.g. 110"
+              onblur="saveScalePercent()" onkeydown="if(event.key==='Enter')this.blur()">
+            <button class="size-setting-clear" onclick="clearScalePercent()">✕ Clear</button>
+            <span class="size-setting-unit" style="color:var(--text-dim);font-size:11px;">overrides mode above</span>
           </div>
         </div>
 
@@ -1139,9 +1150,17 @@ function updateSettingsUI() {
   const isSumatra = method === 'sumatra';
   document.getElementById('printScaleCard')?.classList.toggle('inactive-for-method', !isSumatra);
   const scale = config.printScale || 'shrink';
-  document.getElementById('scaleActualBtn')?.classList.toggle('active',  scale === 'actual');
-  document.getElementById('scaleShrinkBtn')?.classList.toggle('active',  scale === 'shrink');
-  document.getElementById('scaleFitPageBtn')?.classList.toggle('active', scale === 'fit-page');
+  document.getElementById('scaleActualBtn')?.classList.toggle('active',    scale === 'actual');
+  document.getElementById('scaleShrinkBtn')?.classList.toggle('active',    scale === 'shrink');
+  document.getElementById('scaleFitPageBtn')?.classList.toggle('active',   scale === 'fit-page');
+  document.getElementById('scaleFitWidthBtn')?.classList.toggle('active',  scale === 'fit-width');
+
+  const pctInput = document.getElementById('scalePercentInput');
+  if (pctInput) {
+    const pct = config.printScalePercent || 0;
+    pctInput.value = pct > 0 ? pct : '';
+    pctInput.classList.toggle('has-value', pct > 0);
+  }
 
   const wInput = document.getElementById('defaultWidthInput');
   const hInput = document.getElementById('defaultHeightInput');
@@ -1169,6 +1188,18 @@ async function setPrintScale(scale) {
   config = await window.api.updateConfig({ printScale: scale });
   updateSettingsUI();
   showToast('Print scale saved', 'success');
+}
+async function saveScalePercent() {
+  const val = parseInt(document.getElementById('scalePercentInput')?.value, 10) || 0;
+  const pct = (val >= 50 && val <= 300) ? val : 0;
+  config = await window.api.updateConfig({ printScalePercent: pct });
+  updateSettingsUI();
+  if (pct > 0) showToast(`Scale set to ${pct}%`, 'success');
+}
+async function clearScalePercent() {
+  config = await window.api.updateConfig({ printScalePercent: 0 });
+  updateSettingsUI();
+  showToast('Custom scale cleared', 'success');
 }
 async function saveDefaultSize() {
   const w = parseFloat(document.getElementById('defaultWidthInput')?.value) || 0;
