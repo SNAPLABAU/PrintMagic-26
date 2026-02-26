@@ -32,12 +32,6 @@ contextBridge.exposeInMainWorld('api', {
   // Printer properties (Windows native driver dialog)
   openPrinterProperties: (name) => ipcRenderer.invoke('open-printer-properties', name),
 
-  // Printer Profiles
-  getPrinterProfiles: ()          => ipcRenderer.invoke('get-printer-profiles'),
-  savePrinterProfile: (profile)   => ipcRenderer.invoke('save-printer-profile', profile),
-  deletePrinterProfile: (id)      => ipcRenderer.invoke('delete-printer-profile', id),
-  assignProfile: (printerId, profileId) => ipcRenderer.invoke('assign-profile', { printerId, profileId }),
-
   // Events
   on: (channel, cb) => {
     const valid = [

@@ -11,16 +11,13 @@ let jobQueue = [];
 let processingJobs = new Set();
 let jobHistory = [];
 let pendingDialogueJobs = []; // Jobs awaiting user confirmation
-let printerProfiles = [];    // Printer-specific raster pipeline profiles
-
 let config = {
   inFolder: '',
   pendingFolder: '',
   printedFolder: '',
   stashFolder: '',
   defaultSides: 'one-sided',
-  winPrintMethod: 'electron',   // 'electron' | 'shell' | 'sumatra' | 'adobe' | 'raster'
-  printerDPI: 300,              // DPI for internal raster pipeline
+  winPrintMethod: 'electron',   // 'electron' | 'sumatra' | 'adobe'
   printScale: 'shrink',         // 'actual' | 'shrink' | 'fit-page'
   printScalePercent: 0,         // 0 = use printScale mode; >0 overrides with e.g. 110%
   defaultCopies:   1,
@@ -33,21 +30,18 @@ let config = {
 // Config persistence
 const configPath       = path.join(app.getPath('userData'), 'config.json');
 const printerPoolPath  = path.join(app.getPath('userData'), 'printers.json');
-const profilesPath     = path.join(app.getPath('userData'), 'printer-profiles.json');
 
 function loadConfig() {
   try {
-    if (fs.existsSync(configPath))      config        = { ...config, ...JSON.parse(fs.readFileSync(configPath, 'utf8')) };
-    if (fs.existsSync(printerPoolPath)) printerPool   = JSON.parse(fs.readFileSync(printerPoolPath, 'utf8'));
-    if (fs.existsSync(profilesPath))    printerProfiles = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
+    if (fs.existsSync(configPath))      config      = { ...config, ...JSON.parse(fs.readFileSync(configPath, 'utf8')) };
+    if (fs.existsSync(printerPoolPath)) printerPool = JSON.parse(fs.readFileSync(printerPoolPath, 'utf8'));
   } catch (e) {
     console.error('Config load error:', e);
   }
 }
 
-function saveConfig()       { fs.writeFileSync(configPath,      JSON.stringify(config,          null, 2)); }
-function savePrinterPool()  { fs.writeFileSync(printerPoolPath, JSON.stringify(printerPool,     null, 2)); }
-function saveProfiles()     { fs.writeFileSync(profilesPath,    JSON.stringify(printerProfiles, null, 2)); }
+function saveConfig()      { fs.writeFileSync(configPath,      JSON.stringify(config,      null, 2)); }
+function savePrinterPool() { fs.writeFileSync(printerPoolPath, JSON.stringify(printerPool, null, 2)); }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -540,67 +534,6 @@ function electronPrint(filePath, printerName, options) {
   });
 }
 
-// Invoke Windows ShellExecuteEx PrintTo verb via PowerShell.
-// The OS hands the file to the registered default handler (Edge, Acrobat, etc.)
-// which prints it through the Windows driver — no Chromium rendering layer.
-// -EncodedCommand is used to sidestep PowerShell quoting entirely.
-function shellPrintTo(filePath, printerName, options) {
-  return new Promise((resolve, reject) => {
-    const { exec } = require('child_process');
-
-    // Single-quote escape for PowerShell string literals
-    const psFile    = filePath.replace(/'/g, "''");
-    const psPrinter = printerName.replace(/'/g, "''");
-
-    const customW = parseFloat(options?.customWidthMm)  || 0;
-    const customH = parseFloat(options?.customHeightMm) || 0;
-
-    // Build a PowerShell script that:
-    // 1. Optionally sets paper size via Set-PrintConfiguration (1/10 mm units)
-    // 2. Tries Adobe Acrobat/Reader (/t flag = silent print-to-printer)
-    // 3. Falls back to ShellExecuteEx PrintTo verb (works with most apps except Edge)
-    const lines = [];
-
-    if (customW > 0 && customH > 0) {
-      lines.push(`Set-PrintConfiguration -PrinterName '${psPrinter}' -PaperWidth ${Math.round(customW * 10)} -PaperHeight ${Math.round(customH * 10)} -ErrorAction SilentlyContinue`);
-    }
-
-    lines.push(`$f = '${psFile}'`);
-    lines.push(`$p = '${psPrinter}'`);
-
-    // Adobe Acrobat DC / Reader paths — /t <file> <printer> = silent print
-    lines.push(`$readers = @(`);
-    lines.push(`  'C:\\Program Files\\Adobe\\Acrobat DC\\Acrobat\\Acrobat.exe',`);
-    lines.push(`  'C:\\Program Files (x86)\\Adobe\\Acrobat DC\\Acrobat\\Acrobat.exe',`);
-    lines.push(`  'C:\\Program Files\\Adobe\\Acrobat Reader DC\\Reader\\AcroRd32.exe',`);
-    lines.push(`  'C:\\Program Files (x86)\\Adobe\\Acrobat Reader DC\\Reader\\AcroRd32.exe'`);
-    lines.push(`)`);
-    lines.push(`$reader = $readers | Where-Object { Test-Path $_ } | Select-Object -First 1`);
-    lines.push(`if ($reader) {`);
-    lines.push(`  Start-Process -FilePath $reader -ArgumentList '/t', $f, $p -WindowStyle Hidden -Wait`);
-    lines.push(`} else {`);
-    // PrintTo verb fallback — works for most file types; Edge may not support PDF PrintTo
-    lines.push(`  Start-Process -FilePath $f -Verb PrintTo -ArgumentList $p -WindowStyle Hidden -Wait`);
-    lines.push(`}`);
-
-    // Newline-joined so PowerShell parses it as a proper multi-statement script
-    const psScript = lines.join('\n');
-
-    // Encode as UTF-16LE Base64 — the format -EncodedCommand expects
-    const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
-
-    exec(
-      `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
-      { timeout: 60000 },
-      (err, _stdout, stderr) => {
-        if (err) reject(new Error(stderr || err.message));
-        else resolve();
-      }
-    );
-  });
-}
-
-
 // Dedicated Adobe Acrobat / Reader print path.
 // Uses the /t silent-print flag directly — no PrintTo verb fallback.
 // Fails clearly with an error if Adobe is not installed.
@@ -646,250 +579,6 @@ function adobePrint(filePath, printerName, options) {
   });
 }
 
-// ── PDF Rasterisation Engine ────────────────────────────────────────────────
-//
-// Converts one page of a PDF into a 24-bit PNG at exact pixel dimensions
-// derived from the printer profile (mm × DPI / 25.4).
-//
-// Renderer priority (per profile.rasterizer):
-//   'auto'        → tries MuPDF, then Ghostscript, returns null on both failures
-//   'mupdf'       → MuPDF only
-//   'ghostscript' → Ghostscript only
-//   'electron'    → skip; caller falls back to rasterPrintElectron()
-//
-// Returns the path to a temp PNG, or null when no external renderer is available.
-async function rasterizePDF(filePath, mediaWidthMm, mediaHeightMm, dpi, rasterizer) {
-  const { exec } = require('child_process');
-  const os = require('os');
-
-  const widthPx  = Math.round(mediaWidthMm  / 25.4 * dpi);
-  const heightPx = Math.round(mediaHeightMm / 25.4 * dpi);
-  // PDF points (72 pt = 1 inch) used by Ghostscript fixed-media flags
-  const widthPt  = Math.round(mediaWidthMm  / 25.4 * 72);
-  const heightPt = Math.round(mediaHeightMm / 25.4 * 72);
-
-  const stamp  = Date.now();
-  const tmpPng = path.join(os.tmpdir(), `pm_raster_${stamp}.png`);
-
-  // Escape single-quotes for PowerShell literal strings
-  const psFile = filePath.replace(/'/g, "''");
-  const psPng  = tmpPng.replace(/'/g, "''");
-
-  const runPS = (script, timeout) => new Promise((res, rej) => {
-    const encoded = Buffer.from(script, 'utf16le').toString('base64');
-    exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
-      { timeout }, (err, _out, stderr) => err ? rej(new Error(stderr || err.message)) : res());
-  });
-
-  // ── MuPDF (mutool draw) ──────────────────────────────────────────────────
-  if (rasterizer === 'auto' || rasterizer === 'mupdf') {
-    const muScript = `
-$muPaths = @('C:\\Program Files\\MuPDF\\mutool.exe','C:\\Program Files (x86)\\MuPDF\\mutool.exe')
-$muExe = $muPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $muExe) {
-  $cmd = Get-Command mutool -ErrorAction SilentlyContinue
-  if ($cmd) { $muExe = $cmd.Source }
-}
-if (-not $muExe) { exit 1 }
-& $muExe draw -r ${dpi} -w ${widthPx} -h ${heightPx} -F png -o '${psPng}' '${psFile}' 1
-if ($LASTEXITCODE -ne 0) { exit 1 }`;
-    try {
-      await runPS(muScript, 60000);
-      if (fs.existsSync(tmpPng)) return tmpPng;
-    } catch { /* fall through */ }
-  }
-
-  // ── Ghostscript (gswin64c / gswin32c) ────────────────────────────────────
-  if (rasterizer === 'auto' || rasterizer === 'ghostscript') {
-    const gsScript = `
-$gsDirs = @('C:\\Program Files\\gs','C:\\Program Files (x86)\\gs')
-$gsExe  = $null
-foreach ($dir in $gsDirs) {
-  if (Test-Path $dir) {
-    $hit = Get-ChildItem $dir -Recurse -Filter 'gswin64c.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($hit) { $gsExe = $hit.FullName; break }
-    $hit = Get-ChildItem $dir -Recurse -Filter 'gswin32c.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($hit) { $gsExe = $hit.FullName; break }
-  }
-}
-if (-not $gsExe) { exit 1 }
-& $gsExe -dNOPAUSE -dBATCH -sDEVICE=png24 -r${dpi} \`
-         -dFIXEDMEDIA -dDEVICEWIDTHPOINTS=${widthPt} -dDEVICEHEIGHTPOINTS=${heightPt} \`
-         "-sOutputFile=${psPng}" '${psFile}'
-if ($LASTEXITCODE -ne 0) { exit 1 }`;
-    try {
-      await runPS(gsScript, 90000);
-      if (fs.existsSync(tmpPng)) return tmpPng;
-    } catch { /* fall through */ }
-  }
-
-  return null; // no external renderer available
-}
-
-// ── Windows GDI Print (System.Drawing) ─────────────────────────────────────
-//
-// Submits a PNG bitmap to the Windows print spooler via .NET System.Drawing.
-// The Graphics unit is set to Pixel so the image is placed at exact pixel
-// coordinates.  Calibration offsets and scale factor are applied here so the
-// physical printer output matches the printer profile specification.
-async function gdiPrint(pngPath, printerName, mediaWidthMm, mediaHeightMm,
-                        offsetXPx, offsetYPx, scaleFactor, copies, sides) {
-  const { exec } = require('child_process');
-
-  const psPng     = pngPath.replace(/'/g, "''");
-  const psPrinter = printerName.replace(/'/g, "''");
-  // System.Drawing.Printing.PaperSize uses hundredths of an inch
-  const paperW     = Math.round(mediaWidthMm  / 25.4 * 100);
-  const paperH     = Math.round(mediaHeightMm / 25.4 * 100);
-  const safeScale  = Number(scaleFactor) || 1.0;
-  const safeOffX   = parseInt(offsetXPx, 10) || 0;
-  const safeOffY   = parseInt(offsetYPx, 10) || 0;
-  const safeCopies = Math.max(1, parseInt(copies, 10) || 1);
-  // Map PrintMagic sides → System.Drawing.Printing.Duplex enum value
-  const duplexVal = sides === 'two-sided-long-edge'  ? 'Vertical'
-                  : sides === 'two-sided-short-edge' ? 'Horizontal'
-                  : 'Simplex';
-
-  const psScript = `
-Add-Type -AssemblyName System.Drawing
-$img = [System.Drawing.Image]::FromFile('${psPng}')
-$pd  = New-Object System.Drawing.Printing.PrintDocument
-$pd.PrinterSettings.PrinterName  = '${psPrinter}'
-$pd.PrinterSettings.Duplex       = [System.Drawing.Printing.Duplex]::${duplexVal}
-$pd.DefaultPageSettings.PaperSize = New-Object System.Drawing.Printing.PaperSize('Custom', ${paperW}, ${paperH})
-$pd.DefaultPageSettings.Margins   = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
-$pd.DefaultPageSettings.Landscape = $false
-$script:img   = $img
-$script:offX  = ${safeOffX}
-$script:offY  = ${safeOffY}
-$script:scale = ${safeScale}
-$pd.add_PrintPage({
-  param($s, $e)
-  $g = $e.Graphics
-  $g.PageUnit = [System.Drawing.GraphicsUnit]::Pixel
-  $imgW = [int]($script:img.Width  * $script:scale)
-  $imgH = [int]($script:img.Height * $script:scale)
-  $dst  = [System.Drawing.Rectangle]::new($script:offX, $script:offY, $imgW, $imgH)
-  $src  = [System.Drawing.Rectangle]::new(0, 0, $script:img.Width, $script:img.Height)
-  $g.DrawImage($script:img, $dst, $src, [System.Drawing.GraphicsUnit]::Pixel)
-})
-for ($i = 0; $i -lt ${safeCopies}; $i++) { $pd.Print() }
-$img.Dispose()`;
-
-  const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
-  return new Promise((resolve, reject) => {
-    exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
-      { timeout: 120000 },
-      (err, _out, stderr) => err ? reject(new Error(stderr || err.message)) : resolve());
-  });
-}
-
-// ── Electron Fallback Rasteriser ────────────────────────────────────────────
-//
-// Used when MuPDF and Ghostscript are both unavailable.
-// Stage 1: loads PDF in minimal HTML, calls printToPDF() at exact paper size
-//          with no margins → intermediate PDF sized precisely to the media.
-// Stage 2: loads intermediate PDF, calls webContents.print() at same paper size
-//          with marginsType:1 (no margins) → submits to Windows spooler.
-async function rasterPrintElectron(filePath, printerName, paperW, paperH, copies, sides) {
-  const os     = require('os');
-  const urlMod = require('url');
-
-  const viewW = Math.round(paperW * 96 / 25.4);
-  const viewH = Math.round(paperH * 96 / 25.4);
-
-  const fileUrl = urlMod.pathToFileURL(filePath).href;
-  const stamp   = Date.now();
-  const tmpHtml = path.join(os.tmpdir(), `pm_src_${stamp}.html`);
-  const tmpPdf  = path.join(os.tmpdir(), `pm_raster_${stamp}.pdf`);
-
-  fs.writeFileSync(tmpHtml,
-    `<!DOCTYPE html><html><head><style>` +
-    `*{margin:0;padding:0;box-sizing:border-box;}html,body{width:100%;height:100%;overflow:hidden;}` +
-    `embed{width:100%;height:100%;display:block;border:none;}` +
-    `</style></head><body><embed src="${fileUrl}" type="application/pdf"></body></html>`
-  );
-
-  const renderWin = new BrowserWindow({ show: false, width: viewW, height: viewH, webPreferences: { plugins: true } });
-  await new Promise((res, rej) => {
-    renderWin.webContents.once('did-finish-load', res);
-    renderWin.webContents.once('did-fail-load', (_e, _c, d) => rej(new Error(d || 'Failed to load PDF')));
-    renderWin.loadURL(urlMod.pathToFileURL(tmpHtml).href);
-  });
-  await new Promise(r => setTimeout(r, 1500));
-
-  const pdfBuffer = await renderWin.webContents.printToPDF({
-    pageSize: { width: Math.round(paperW * 1000), height: Math.round(paperH * 1000) },
-    printBackground: true,
-    marginsType: 1,
-  });
-  renderWin.destroy();
-  try { fs.unlinkSync(tmpHtml); } catch { /* ignore */ }
-  fs.writeFileSync(tmpPdf, pdfBuffer);
-
-  const printWin = new BrowserWindow({ show: false, webPreferences: { plugins: true } });
-  await new Promise((res, rej) => {
-    printWin.webContents.once('did-finish-load', res);
-    printWin.webContents.once('did-fail-load', (_e, _c, d) => rej(new Error(d || 'Failed to load raster PDF')));
-    printWin.loadURL(urlMod.pathToFileURL(tmpPdf).href);
-  });
-  await new Promise(r => setTimeout(r, 800));
-
-  await new Promise((resolve, reject) => {
-    const printOpts = {
-      silent: true, deviceName: printerName || '',
-      copies, printBackground: true, marginsType: 1,
-      pageSize: { width: Math.round(paperW * 1000), height: Math.round(paperH * 1000) },
-    };
-    if (sides === 'two-sided-long-edge')       printOpts.duplexMode = 'longEdge';
-    else if (sides === 'two-sided-short-edge') printOpts.duplexMode = 'shortEdge';
-    printWin.webContents.print(printOpts, (success, reason) => {
-      printWin.destroy();
-      try { fs.unlinkSync(tmpPdf); } catch { /* ignore */ }
-      if (success) resolve();
-      else reject(new Error(reason || 'Raster print failed'));
-    });
-  });
-}
-
-// ── Raster Print Orchestrator ───────────────────────────────────────────────
-//
-// 1. Resolves the printer's profile (if assigned) for media specs + calibration.
-// 2. Calls rasterizePDF() to get a high-DPI PNG via MuPDF or Ghostscript.
-// 3. Submits the PNG via Windows GDI (System.Drawing) with calibration applied.
-// 4. Falls back to rasterPrintElectron() when no external renderer is found.
-async function rasterPrint(filePath, printerName, options) {
-  // Resolve profile attached to this printer (if any)
-  const poolEntry = printerPool.find(p => p.name === printerName);
-  const profile   = printerProfiles.find(p => p.id === poolEntry?.profileId) || {};
-
-  const mediaW  = parseFloat(options?.customWidthMm)  || profile.mediaWidthMm  || config.defaultWidthMm  || 210;
-  const mediaH  = parseFloat(options?.customHeightMm) || profile.mediaHeightMm || config.defaultHeightMm || 297;
-  const dpi     = profile.dpi      || config.printerDPI || 300;
-  const copies  = Math.max(1, parseInt(options?.copies, 10) || 1);
-  const sides   = options?.sides   || 'one-sided';
-  const rasterizerPref = profile.rasterizer || 'auto';
-
-  const cal       = profile.calibration || {};
-  const offsetX   = cal.offsetXPx    || 0;
-  const offsetY   = cal.offsetYPx    || 0;
-  const scaleFactor = cal.scaleFactor || 1.0;
-
-  if (rasterizerPref !== 'electron') {
-    const pngPath = await rasterizePDF(filePath, mediaW, mediaH, dpi, rasterizerPref);
-    if (pngPath) {
-      try {
-        await gdiPrint(pngPath, printerName, mediaW, mediaH, offsetX, offsetY, scaleFactor, copies, sides);
-      } finally {
-        try { fs.unlinkSync(pngPath); } catch { /* ignore */ }
-      }
-      return;
-    }
-  }
-
-  // Fallback: Electron two-stage PDF pipeline
-  await rasterPrintElectron(filePath, printerName, mediaW, mediaH, copies, sides);
-}
 
 async function sendToPrinter(job, printer) {
   const ext = path.extname(job.filename).toLowerCase();
@@ -927,12 +616,6 @@ async function sendToPrinter(job, printer) {
     }
     if (config.winPrintMethod === 'adobe') {
       return adobePrint(filePath, printer.name, mergedOpts);
-    }
-    if (config.winPrintMethod === 'raster') {
-      return rasterPrint(filePath, printer.name, mergedOpts);
-    }
-    if (config.winPrintMethod === 'shell') {
-      return shellPrintTo(filePath, printer.name, mergedOpts);
     }
     return electronPrint(filePath, printer.name, mergedOpts);
   }
@@ -1169,41 +852,6 @@ ipcMain.handle('toggle-printer', (event, printerId) => {
   const p = printerPool.find(p => p.id === printerId);
   if (p) {
     p.enabled = !p.enabled;
-    savePrinterPool();
-  }
-  return printerPool;
-});
-
-// ── Printer Profile IPC ───────────────────────────────────────────────────────
-
-ipcMain.handle('get-printer-profiles', () => printerProfiles);
-
-ipcMain.handle('save-printer-profile', (_e, profile) => {
-  if (!profile.id) {
-    // New profile — generate a simple unique ID
-    profile.id = 'prof-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
-  }
-  const idx = printerProfiles.findIndex(p => p.id === profile.id);
-  if (idx > -1) printerProfiles[idx] = profile;
-  else          printerProfiles.push(profile);
-  saveProfiles();
-  return printerProfiles;
-});
-
-ipcMain.handle('delete-printer-profile', (_e, profileId) => {
-  printerProfiles = printerProfiles.filter(p => p.id !== profileId);
-  // Remove orphaned profileId references from the printer pool
-  printerPool.forEach(p => { if (p.profileId === profileId) delete p.profileId; });
-  saveProfiles();
-  savePrinterPool();
-  return { profiles: printerProfiles, printerPool };
-});
-
-ipcMain.handle('assign-profile', (_e, { printerId, profileId }) => {
-  const p = printerPool.find(p => p.id === printerId);
-  if (p) {
-    if (profileId) p.profileId = profileId;
-    else           delete p.profileId;
     savePrinterPool();
   }
   return printerPool;
