@@ -418,6 +418,70 @@
   .settings-card.inactive-for-method::after {
     content: ''; display: block;
   }
+  .hidden-row { display: none !important; }
+
+  /* ── Printer Profiles ───────────────────────────────────────── */
+  .profile-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .profile-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+  }
+  .profile-item-info { flex: 1; min-width: 0; }
+  .profile-item-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .profile-item-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .profile-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .profile-btn {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text-dim);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .profile-btn:hover { color: var(--text); border-color: var(--accent); }
+  .profile-btn.danger:hover { color: #f87171; border-color: #f87171; }
+  .profile-form {
+    margin-top: 14px; padding: 16px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  }
+  .prof-form-grid {
+    display: grid; grid-template-columns: 110px 1fr;
+    gap: 10px 14px; align-items: center; margin-bottom: 14px;
+  }
+  .prof-form-grid label { font-size: 12px; color: var(--text-dim); font-weight: 500; text-align: right; }
+  .prof-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .prof-input {
+    flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 6px 10px; font-size: 12px;
+  }
+  .prof-input:focus { outline: none; border-color: var(--accent); }
+  .prof-input-sm {
+    width: 72px; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 6px 8px; font-size: 12px; text-align: right;
+  }
+  .prof-input-sm:focus { outline: none; border-color: var(--accent); }
+  .prof-select {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  .prof-select:focus { outline: none; border-color: var(--accent); }
+  .prof-form-actions { display: flex; gap: 8px; }
+  .prof-form-actions .sides-opt { flex: none; padding: 6px 18px; font-size: 12px; }
+  .profile-add-btn {
+    margin-top: 4px; width: 100%; padding: 8px; border-radius: 8px; font-size: 12px;
+    border: 1px dashed var(--border); background: none; color: var(--text-dim);
+    cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .profile-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* Profile selector in printer cards */
+  .printer-profile-row {
+    display: flex; align-items: center; gap: 8px; margin-top: 8px;
+    padding-top: 8px; border-top: 1px solid var(--border);
+  }
+  .printer-profile-row label { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+  .printer-profile-select {
+    flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;
+  }
+  .printer-profile-select:focus { outline: none; border-color: var(--accent); }
   .sides-row { display: flex; flex-wrap: wrap; gap: 10px; }
   .sides-opt {
     flex: 1; padding: 10px 14px; border-radius: 8px;
@@ -788,32 +852,28 @@
         <div class="settings-card" id="winPrintCard">
           <div>
             <div class="settings-card-title">Windows Print Method</div>
-            <div class="settings-card-desc"><b>Built-in (Electron)</b> — Chromium renderer, no install needed. <b>Shell (PrintTo)</b> — hands the file to the system default handler via ShellExecuteEx. <b>SumatraPDF</b> — lightweight PDF viewer with scale control (noscale/shrink/fit). <b>Ghostscript</b> — rasterises with <code>-dFitPage</code>, best for margin accuracy. <b>Foxit Reader</b> — uses Foxit's <code>/t</code> silent-print flag. <b>MuPDF</b> — open-source, fast, supports duplex via <code>mutool print</code>. All except Electron require the app installed.</div>
+            <div class="settings-card-desc"><b>Raster (Built-in)</b> — recommended for photo printing; PrintMagic renders the PDF internally at exact paper dimensions then sends the result to the printer with no external scaling. <b>Built-in (Electron)</b> — Chromium renderer, no install needed. <b>Shell (PrintTo)</b> — hands the file to Adobe Acrobat/Reader first, falls back to the OS PrintTo verb. <b>Adobe Reader</b> — dedicated Adobe Acrobat/Reader path via <code>/t</code> silent-print flag; requires Adobe installed. <b>SumatraPDF</b> — lightweight CLI printer with scale tokens (noscale/shrink/fit); requires SumatraPDF installed.</div>
           </div>
           <div class="sides-row">
-            <button class="sides-opt" id="winPrintShellBtn" onclick="setWinPrintMethod('shell')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
-              Shell (PrintTo)
+            <button class="sides-opt" id="winPrintRasterBtn" onclick="setWinPrintMethod('raster')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+              Raster (Built-in)
             </button>
             <button class="sides-opt active" id="winPrintElectronBtn" onclick="setWinPrintMethod('electron')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
               Built-in (Electron)
             </button>
+            <button class="sides-opt" id="winPrintShellBtn" onclick="setWinPrintMethod('shell')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
+              Shell (PrintTo)
+            </button>
+            <button class="sides-opt" id="winPrintAdobeBtn" onclick="setWinPrintMethod('adobe')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+              Adobe Reader
+            </button>
             <button class="sides-opt" id="winPrintSumatraBtn" onclick="setWinPrintMethod('sumatra')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               SumatraPDF
-            </button>
-            <button class="sides-opt" id="winPrintGhostscriptBtn" onclick="setWinPrintMethod('ghostscript')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-              Ghostscript
-            </button>
-            <button class="sides-opt" id="winPrintFoxitBtn" onclick="setWinPrintMethod('foxit')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              Foxit Reader
-            </button>
-            <button class="sides-opt" id="winPrintMuPDFBtn" onclick="setWinPrintMethod('mupdf')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              MuPDF
             </button>
           </div>
         </div>
@@ -822,11 +882,11 @@
           <div>
             <div class="settings-card-title">
               Print Scale
-              <span class="method-badge">SumatraPDF</span>
+              <span class="method-badge" id="printScaleBadge">SumatraPDF</span>
             </div>
-            <div class="settings-card-desc">Controls how SumatraPDF scales documents onto the page. <b>Shrink to Fit</b> — recommended; scales down only if content exceeds the printable area, preventing edge clipping. <b>Actual Size</b> — 100% with no scaling (may clip edges at driver margins). <b>Fit Page</b> — always scales to fill the full page. <b>Fit to Width</b> — scales horizontally to fill the page width.</div>
+            <div class="settings-card-desc" id="printScaleDesc">Controls how SumatraPDF scales documents onto the page. <b>Shrink to Fit</b> — recommended; scales down only if content exceeds the printable area, preventing edge clipping. <b>Actual Size</b> — 100% with no scaling (may clip edges at driver margins). <b>Fit Page</b> — always scales to fill the full page. <b>Fit to Width</b> — scales horizontally to fill the page width.</div>
           </div>
-          <div class="page-size-grid">
+          <div class="page-size-grid" id="printScaleModes">
             <button class="page-size-opt" id="scaleActualBtn" onclick="setPrintScale('actual')">
               Actual Size
             </button>
@@ -840,13 +900,20 @@
               Fit to Width
             </button>
           </div>
-          <div class="size-setting-row">
+          <div class="size-setting-row" id="scalePercentRow">
             <span class="size-setting-unit">Custom&nbsp;%</span>
             <input type="number" id="scalePercentInput" class="size-setting-input"
               min="50" max="300" step="1" placeholder="e.g. 110"
               onblur="saveScalePercent()" onkeydown="if(event.key==='Enter')this.blur()">
             <button class="size-setting-clear" onclick="clearScalePercent()">✕ Clear</button>
             <span class="size-setting-unit" style="color:var(--text-dim);font-size:11px;">overrides mode above</span>
+          </div>
+          <div class="size-setting-row" id="printerDpiRow">
+            <span class="size-setting-unit">Printer&nbsp;DPI</span>
+            <input type="number" id="printerDpiInput" class="size-setting-input"
+              min="72" max="1200" step="1" placeholder="300"
+              onblur="savePrinterDPI()" onkeydown="if(event.key==='Enter')this.blur()">
+            <span class="size-setting-unit" style="color:var(--text-dim);font-size:11px;">raster render resolution</span>
           </div>
         </div>
 
@@ -879,6 +946,73 @@
           </div>
         </div>
 
+        <div class="settings-card" id="profilesCard">
+          <div>
+            <div class="settings-card-title">Printer Profiles</div>
+            <div class="settings-card-desc">Profiles store media size, DPI, calibration offsets and rasterizer preference per printer. Assign a profile to a printer in the <b>Printers</b> tab — the <b>Raster (Built-in)</b> pipeline reads it automatically for pixel-perfect output.</div>
+          </div>
+
+          <div class="profile-list" id="profileList"></div>
+
+          <button class="profile-add-btn" id="addProfileBtn" onclick="openProfileForm()">+ Add Profile</button>
+
+          <div id="profileForm" class="profile-form" style="display:none">
+            <input type="hidden" id="profId">
+            <div class="prof-form-grid">
+              <label>Name</label>
+              <input type="text" id="profName" class="prof-input" placeholder="e.g. SwiftPro K30 – Card">
+
+              <label>Media (mm)</label>
+              <div class="prof-row">
+                <input type="number" id="profW" class="prof-input-sm" min="1" max="9999" step="0.1" placeholder="W">
+                <span class="size-setting-sep">×</span>
+                <input type="number" id="profH" class="prof-input-sm" min="1" max="9999" step="0.1" placeholder="H">
+                <span class="size-setting-unit">mm</span>
+              </div>
+
+              <label>Printable (mm)</label>
+              <div class="prof-row">
+                <input type="number" id="profPW" class="prof-input-sm" min="1" max="9999" step="0.1" placeholder="W (opt)">
+                <span class="size-setting-sep">×</span>
+                <input type="number" id="profPH" class="prof-input-sm" min="1" max="9999" step="0.1" placeholder="H (opt)">
+                <span class="size-setting-unit">mm</span>
+              </div>
+
+              <label>DPI</label>
+              <div class="prof-row">
+                <input type="number" id="profDPI" class="prof-input-sm" value="300" min="72" max="1200" step="1">
+                <span class="size-setting-unit">dpi</span>
+                <select id="profOrientation" class="prof-select" style="margin-left:8px">
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                </select>
+              </div>
+
+              <label>Calibration</label>
+              <div class="prof-row">
+                <span class="size-setting-unit">X</span>
+                <input type="number" id="profOffX" class="prof-input-sm" value="0" step="1" placeholder="0">
+                <span class="size-setting-unit">px&nbsp;&nbsp;Y</span>
+                <input type="number" id="profOffY" class="prof-input-sm" value="0" step="1" placeholder="0">
+                <span class="size-setting-unit">px&nbsp;&nbsp;Scale</span>
+                <input type="number" id="profScale" class="prof-input-sm" value="1.000" step="0.001" min="0.900" max="1.100" placeholder="1.000">
+              </div>
+
+              <label>Rasterizer</label>
+              <select id="profRasterizer" class="prof-select">
+                <option value="auto">Auto (MuPDF → GS → Electron)</option>
+                <option value="mupdf">MuPDF only</option>
+                <option value="ghostscript">Ghostscript only</option>
+                <option value="electron">Electron (built-in fallback)</option>
+              </select>
+            </div>
+            <div class="prof-form-actions">
+              <button class="sides-opt active" onclick="saveProfile()">Save Profile</button>
+              <button class="sides-opt" onclick="cancelProfileForm()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -892,6 +1026,7 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentView = 'queue';
 let printerPool = [];
+let printerProfiles = [];
 let queueState = { queued: [], processing: [], history: [] };
 let config = {};
 let watcherActive = false;
@@ -901,11 +1036,13 @@ let dragSrcIndex = null;
 async function init() {
   config = await window.api.getConfig();
   printerPool = await window.api.getPrinterPool();
+  printerProfiles = await window.api.getPrinterProfiles();
   queueState = await window.api.getQueueState();
 
   updateFolderUI();
   updateSettingsUI();
   renderPrinterPool();
+  renderProfileList();
   renderQueue();
   renderHistory();
   updateFolderCounts();
@@ -1075,19 +1212,55 @@ async function addManualPrinter() {
   document.getElementById('manualPrinterName').value = '';
   document.getElementById('navPrinterCount').textContent = printerPool.filter(p => p.enabled).length;
 }
+function printerCardHTML(p, i) {
+  const typeLabels = { standard: 'Standard', label: 'Label Printer', receipt: 'Receipt', raw: 'Raw/Custom' };
+  const dotClass   = p.paused ? 'dot-paused' : p.status === 'busy' ? 'dot-busy' : p.enabled ? 'dot-online' : 'dot-offline';
+  const typeLabel  = typeLabels[p.type] || p.type;
+  const extras     = [p.rawMode ? 'Raw Mode' : '', p.paused ? 'Paused' : '', p.currentJob ? 'Printing: ' + p.currentJob : ''].filter(Boolean).join(' · ');
+  const profileOpts = '<option value="">— No profile —</option>' +
+    printerProfiles.map(pr => `<option value="${pr.id}"${p.profileId === pr.id ? ' selected' : ''}>${pr.name}</option>`).join('');
+  return `<div class="printer-card ${!p.enabled ? 'disabled' : ''} ${p.paused ? 'paused' : ''}" draggable="true" data-index="${i}"
+    ondragstart="dragStart(event,${i})" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dragDrop(event,${i})" ondragend="dragEnd(event)">
+    <span class="printer-order">${i+1}</span>
+    <div class="printer-icon"><svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div>
+    <div class="printer-info">
+      <div class="printer-name">${p.name}</div>
+      <div class="printer-type">${typeLabel}${extras ? ' · ' + extras : ''}</div>
+      <div class="printer-profile-row">
+        <label>Profile</label>
+        <select class="printer-profile-select" onchange="assignProfile('${p.id}', this.value)">${profileOpts}</select>
+      </div>
+    </div>
+    <span class="printer-jobs-count">${p.jobCount||0} jobs</span>
+    <div class="printer-status-dot ${dotClass}"></div>
+    <div class="printer-actions">
+      <div class="icon-btn" onclick="openPrinterProperties(${i})" title="Printer Properties">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+      <div class="icon-btn" onclick="togglePrinter('${p.id}')" title="${p.enabled ? 'Disable' : 'Enable'}">
+        ${p.enabled
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>'}
+      </div>
+      <div class="icon-btn danger" onclick="removePrinter('${p.id}')" title="Remove">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </div>
+    </div>
+  </div>`;
+}
 function renderPrinterPool() {
-  const list = document.getElementById('printerPoolList');
+  const list  = document.getElementById('printerPoolList');
   const empty = document.getElementById('printerPoolEmpty');
   document.getElementById('navPrinterCount').textContent = printerPool.filter(p => p.enabled).length;
   if (printerPool.length === 0) { list.innerHTML = ''; empty.style.display = 'flex'; return; }
   empty.style.display = 'none';
-  const typeLabels = { standard: 'Standard', label: 'Label Printer', receipt: 'Receipt', raw: 'Raw/Custom' };
-  list.innerHTML = printerPool.map((p, i) => {
-    const dotClass = p.paused ? 'dot-paused' : p.status === 'busy' ? 'dot-busy' : p.enabled ? 'dot-online' : 'dot-offline';
-    const typeLabel = typeLabels[p.type] || p.type;
-    const extras = [p.rawMode ? 'Raw Mode' : '', p.paused ? 'Paused' : '', p.currentJob ? 'Printing: ' + p.currentJob : ''].filter(Boolean).join(' · ');
-    return '<div class="printer-card ' + (!p.enabled ? 'disabled' : '') + ' ' + (p.paused ? 'paused' : '') + '" draggable="true" data-index="' + i + '" ondragstart="dragStart(event,' + i + ')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dragDrop(event,' + i + ')" ondragend="dragEnd(event)"><span class="printer-order">' + (i+1) + '</span><div class="printer-icon"><svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div><div class="printer-info"><div class="printer-name">' + p.name + '</div><div class="printer-type">' + typeLabel + (extras ? ' · ' + extras : '') + '</div></div><span class="printer-jobs-count">' + (p.jobCount||0) + ' jobs</span><div class="printer-status-dot ' + dotClass + '"></div><div class="printer-actions"><div class="icon-btn" onclick="openPrinterProperties(' + i + ')" title="Printer Properties"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="icon-btn" onclick="togglePrinter(\'' + p.id + '\')" title="' + (p.enabled?'Disable':'Enable') + '">' + (p.enabled ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>') + '</div><div class="icon-btn danger" onclick="removePrinter(\'' + p.id + '\')" title="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></div></div></div>';
-  }).join('');
+  list.innerHTML = printerPool.map((p, i) => printerCardHTML(p, i)).join('');
+}
+async function assignProfile(printerId, profileId) {
+  printerPool = await window.api.assignProfile(printerId, profileId || null);
+  // Don't re-render — just let the select retain its state
+  const prof = printerProfiles.find(pr => pr.id === profileId);
+  showToast(prof ? `Profile "${prof.name}" assigned` : 'Profile cleared', 'success');
 }
 async function togglePrinter(id) { printerPool = await window.api.togglePrinter(id); renderPrinterPool(); }
 function openPrinterProperties(idx) { window.api.openPrinterProperties(printerPool[idx].name); }
@@ -1132,6 +1305,100 @@ function renderHistory() {
 async function retryJob(id) { queueState = await window.api.retryJob(id); renderQueue(); renderHistory(); showToast('Job requeued', 'success'); }
 async function clearHistory() { queueState = await window.api.clearHistory(); renderHistory(); showToast('History cleared', 'success'); }
 
+// ── Printer Profiles ──────────────────────────────────────────────────────────
+function renderProfileList() {
+  const list = document.getElementById('profileList');
+  if (!list) return;
+  if (printerProfiles.length === 0) {
+    list.innerHTML = '<p style="font-size:12px;color:var(--text-dim);margin:0">No profiles yet — add one below.</p>';
+    return;
+  }
+  list.innerHTML = printerProfiles.map(p => {
+    const meta = [
+      p.mediaWidthMm && p.mediaHeightMm ? `${p.mediaWidthMm}×${p.mediaHeightMm} mm` : '',
+      p.dpi ? `${p.dpi} DPI` : '',
+      p.orientation || '',
+      p.rasterizer && p.rasterizer !== 'auto' ? p.rasterizer : 'auto',
+    ].filter(Boolean).join(' · ');
+    return `<div class="profile-item">
+      <div class="profile-item-info">
+        <div class="profile-item-name">${p.name || '(unnamed)'}</div>
+        <div class="profile-item-meta">${meta}</div>
+      </div>
+      <div class="profile-item-actions">
+        <button class="profile-btn" onclick="openProfileForm('${p.id}')">Edit</button>
+        <button class="profile-btn danger" onclick="deleteProfile('${p.id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openProfileForm(id) {
+  const form = document.getElementById('profileForm');
+  const addBtn = document.getElementById('addProfileBtn');
+  const p = id ? printerProfiles.find(pr => pr.id === id) : null;
+  document.getElementById('profId').value           = p?.id || '';
+  document.getElementById('profName').value         = p?.name || '';
+  document.getElementById('profW').value            = p?.mediaWidthMm  || '';
+  document.getElementById('profH').value            = p?.mediaHeightMm || '';
+  document.getElementById('profPW').value           = p?.printableWidthMm  || '';
+  document.getElementById('profPH').value           = p?.printableHeightMm || '';
+  document.getElementById('profDPI').value          = p?.dpi || 300;
+  document.getElementById('profOrientation').value  = p?.orientation || 'portrait';
+  document.getElementById('profOffX').value         = p?.calibration?.offsetXPx   || 0;
+  document.getElementById('profOffY').value         = p?.calibration?.offsetYPx   || 0;
+  document.getElementById('profScale').value        = p?.calibration?.scaleFactor || 1.000;
+  document.getElementById('profRasterizer').value   = p?.rasterizer || 'auto';
+  form.style.display = 'block';
+  if (addBtn) addBtn.style.display = 'none';
+}
+
+function cancelProfileForm() {
+  document.getElementById('profileForm').style.display = 'none';
+  const addBtn = document.getElementById('addProfileBtn');
+  if (addBtn) addBtn.style.display = '';
+}
+
+async function saveProfile() {
+  const id   = document.getElementById('profId').value;
+  const name = document.getElementById('profName').value.trim();
+  if (!name) { showToast('Profile name is required', 'error'); return; }
+
+  const profile = {
+    id,
+    name,
+    mediaWidthMm:      parseFloat(document.getElementById('profW').value)   || 0,
+    mediaHeightMm:     parseFloat(document.getElementById('profH').value)   || 0,
+    printableWidthMm:  parseFloat(document.getElementById('profPW').value)  || 0,
+    printableHeightMm: parseFloat(document.getElementById('profPH').value)  || 0,
+    dpi:               parseInt(document.getElementById('profDPI').value, 10) || 300,
+    orientation:       document.getElementById('profOrientation').value,
+    rasterizer:        document.getElementById('profRasterizer').value,
+    calibration: {
+      offsetXPx:   parseInt(document.getElementById('profOffX').value, 10)     || 0,
+      offsetYPx:   parseInt(document.getElementById('profOffY').value, 10)     || 0,
+      scaleFactor: parseFloat(document.getElementById('profScale').value) || 1.0,
+    },
+  };
+
+  printerProfiles = await window.api.savePrinterProfile(profile);
+  cancelProfileForm();
+  renderProfileList();
+  renderPrinterPool(); // refresh profile dropdowns in printer cards
+  showToast(`Profile "${name}" saved`, 'success');
+}
+
+async function deleteProfile(id) {
+  const p = printerProfiles.find(pr => pr.id === id);
+  if (!p) return;
+  const result = await window.api.deletePrinterProfile(id);
+  printerProfiles = result.profiles;
+  printerPool     = result.printerPool;
+  renderProfileList();
+  renderPrinterPool();
+  showToast(`Profile "${p.name}" deleted`, 'success');
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 function updateSettingsUI() {
   const sides = config.defaultSides || 'one-sided';
@@ -1139,16 +1406,32 @@ function updateSettingsUI() {
   document.getElementById('settingDoubleBtn')?.classList.toggle('active', sides !== 'one-sided');
 
   const method = config.winPrintMethod || 'electron';
-  document.getElementById('winPrintShellBtn')?.classList.toggle('active',       method === 'shell');
-  document.getElementById('winPrintElectronBtn')?.classList.toggle('active',    method === 'electron');
-  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',     method === 'sumatra');
-  document.getElementById('winPrintGhostscriptBtn')?.classList.toggle('active', method === 'ghostscript');
-  document.getElementById('winPrintFoxitBtn')?.classList.toggle('active',       method === 'foxit');
-  document.getElementById('winPrintMuPDFBtn')?.classList.toggle('active',       method === 'mupdf');
+  document.getElementById('winPrintRasterBtn')?.classList.toggle('active',   method === 'raster');
+  document.getElementById('winPrintElectronBtn')?.classList.toggle('active', method === 'electron');
+  document.getElementById('winPrintShellBtn')?.classList.toggle('active',    method === 'shell');
+  document.getElementById('winPrintAdobeBtn')?.classList.toggle('active',    method === 'adobe');
+  document.getElementById('winPrintSumatraBtn')?.classList.toggle('active',  method === 'sumatra');
 
-  // Print Scale — only relevant for SumatraPDF; dim the card for all other methods
+  // Print Scale card: visible for SumatraPDF and Raster; dimmed otherwise
   const isSumatra = method === 'sumatra';
-  document.getElementById('printScaleCard')?.classList.toggle('inactive-for-method', !isSumatra);
+  const isRaster  = method === 'raster';
+  document.getElementById('printScaleCard')?.classList.toggle('inactive-for-method', !isSumatra && !isRaster);
+
+  // SumatraPDF scale mode buttons and custom % — only shown for SumatraPDF
+  document.getElementById('printScaleModes')?.classList.toggle('hidden-row', !isSumatra);
+  document.getElementById('scalePercentRow')?.classList.toggle('hidden-row', !isSumatra);
+  document.getElementById('printerDpiRow')?.classList.toggle('hidden-row',   !isRaster);
+
+  // Update badge label and description depending on active method
+  const badge = document.getElementById('printScaleBadge');
+  const desc  = document.getElementById('printScaleDesc');
+  if (badge) badge.textContent = isRaster ? 'Raster' : 'SumatraPDF';
+  if (desc) {
+    desc.innerHTML = isRaster
+      ? 'Controls the internal render resolution for the Raster pipeline. Higher DPI produces sharper output but takes longer to render. <b>300 DPI</b> is standard for photo printing; 600 DPI for documents with fine detail.'
+      : 'Controls how SumatraPDF scales documents onto the page. <b>Shrink to Fit</b> — recommended; scales down only if content exceeds the printable area, preventing edge clipping. <b>Actual Size</b> — 100% with no scaling (may clip edges at driver margins). <b>Fit Page</b> — always scales to fill the full page. <b>Fit to Width</b> — scales horizontally to fill the page width.';
+  }
+
   const scale = config.printScale || 'shrink';
   document.getElementById('scaleActualBtn')?.classList.toggle('active',    scale === 'actual');
   document.getElementById('scaleShrinkBtn')?.classList.toggle('active',    scale === 'shrink');
@@ -1160,6 +1443,13 @@ function updateSettingsUI() {
     const pct = config.printScalePercent || 0;
     pctInput.value = pct > 0 ? pct : '';
     pctInput.classList.toggle('has-value', pct > 0);
+  }
+
+  const dpiInput = document.getElementById('printerDpiInput');
+  if (dpiInput) {
+    const dpi = config.printerDPI || 300;
+    dpiInput.value = dpi;
+    dpiInput.classList.toggle('has-value', dpi !== 300);
   }
 
   const wInput = document.getElementById('defaultWidthInput');
@@ -1200,6 +1490,13 @@ async function clearScalePercent() {
   config = await window.api.updateConfig({ printScalePercent: 0 });
   updateSettingsUI();
   showToast('Custom scale cleared', 'success');
+}
+async function savePrinterDPI() {
+  const val = parseInt(document.getElementById('printerDpiInput')?.value, 10) || 300;
+  const dpi = (val >= 72 && val <= 1200) ? val : 300;
+  config = await window.api.updateConfig({ printerDPI: dpi });
+  updateSettingsUI();
+  showToast(`Printer DPI set to ${dpi}`, 'success');
 }
 async function saveDefaultSize() {
   const w = parseFloat(document.getElementById('defaultWidthInput')?.value) || 0;
